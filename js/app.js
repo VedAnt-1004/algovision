@@ -1106,6 +1106,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const originalText = copyBtn.innerHTML;
                 copyBtn.innerHTML = "✅ Copied!";
                 setTimeout(() => copyBtn.innerHTML = originalText, 2000);
+            }).catch(() => {
+                // Clipboard API can reject in insecure (non-HTTPS) contexts or
+                // when permission is denied — fail visibly instead of leaving
+                // an unhandled promise rejection with no user feedback.
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = "⚠️ Copy failed";
+                setTimeout(() => copyBtn.innerHTML = originalText, 2000);
             });
         });
     }
