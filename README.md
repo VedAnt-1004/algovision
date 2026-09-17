@@ -1,7 +1,7 @@
 # AlgoVision
 **Interactive Data Structures & Algorithms Visualizer**
 
-🔗 **[Live Demo](https://sorting-visualizer-sable-rho.vercel.app/)**
+🔗 **[Live Demo](https://algovision-dsa.vercel.app/)**
 
 ---
 
