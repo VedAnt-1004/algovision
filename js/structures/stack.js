@@ -8,6 +8,14 @@
 // mutates stackState directly and re-renders immediately.
 
 let stackState = [];
+let stackBusy = false; // guards against overlapping Push/Pop and against Clear racing a pending animation
+
+function setStackControlsDisabled(disabled) {
+    ['push-btn', 'pop-btn', 'peek-btn', 'clear-btn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.disabled = disabled;
+    });
+}
 
 function renderStack() {
     const container = document.getElementById('visualizer-container');
@@ -49,38 +57,55 @@ function renderStack() {
 }
 
 async function pushToStack(value) {
-    stackState.push(value);
-    renderStack();
+    if (stackBusy) return;
+    stackBusy = true;
+    setStackControlsDisabled(true);
 
-    const statusBar = document.getElementById('status-bar');
-    statusBar.className = 'status-message success';
-    statusBar.innerText = `Pushed ${value} onto the stack`;
+    try {
+        stackState.push(value);
+        renderStack();
+
+        const statusBar = document.getElementById('status-bar');
+        statusBar.className = 'status-message success';
+        statusBar.innerText = `Pushed ${value} onto the stack`;
+    } finally {
+        stackBusy = false;
+        setStackControlsDisabled(false);
+    }
 }
 
 async function popFromStack() {
+    if (stackBusy) return null;
+    stackBusy = true;
+    setStackControlsDisabled(true);
     const statusBar = document.getElementById('status-bar');
 
-    if (stackState.length === 0) {
-        statusBar.className = 'status-message error';
-        statusBar.innerText = 'Stack is empty — nothing to pop';
-        return null;
+    try {
+        if (stackState.length === 0) {
+            statusBar.className = 'status-message error';
+            statusBar.innerText = 'Stack is empty — nothing to pop';
+            return null;
+        }
+
+        const myGeneration = workspaceGeneration;
+        const container = document.getElementById('visualizer-container');
+        const topWrapper = container.lastElementChild;
+        const topBlock = topWrapper ? topWrapper.querySelector('.array-block') : null;
+        if (topBlock) topBlock.classList.add('popping');
+
+        await sleep(300); // matches the .array-block CSS transition duration
+        if (myGeneration !== workspaceGeneration) return null; // navigated away or cleared mid-animation
+
+        const popped = stackState.pop();
+        renderStack();
+
+        statusBar.className = 'status-message success';
+        statusBar.innerText = `Popped ${popped} from the stack`;
+        return popped;
+    } finally {
+        stackBusy = false;
+        setStackControlsDisabled(false);
     }
-
-    const myGeneration = workspaceGeneration;
-    const container = document.getElementById('visualizer-container');
-    const topWrapper = container.lastElementChild;
-    const topBlock = topWrapper ? topWrapper.querySelector('.array-block') : null;
-    if (topBlock) topBlock.classList.add('popping');
-
-    await sleep(300); // matches the .array-block CSS transition duration
-    if (myGeneration !== workspaceGeneration) return null; // navigated away mid-animation
-
-    const popped = stackState.pop();
-    renderStack();
-
-    statusBar.className = 'status-message success';
-    statusBar.innerText = `Popped ${popped} from the stack`;
-    return popped;
 }
 
 function peekStack() {
@@ -99,7 +124,10 @@ function peekStack() {
 }
 
 function clearStack() {
+    workspaceGeneration++; // orphan any pending pop animation so it can't resurrect after this clear
     stackState = [];
+    stackBusy = false;
+    setStackControlsDisabled(false);
     renderStack();
     const statusBar = document.getElementById('status-bar');
     if (statusBar) statusBar.className = 'status-message hidden';
