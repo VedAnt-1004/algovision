@@ -135,37 +135,41 @@ async function bfsTraversal(start) {
 
     graphBusy = true;
     const myGeneration = workspaceGeneration;
-    const visited = new Set([start]);
-    const queue = [start];
-    const order = [];
 
-    renderGraph({ comparing: [start] });
-    statusBar.className = 'status-message searching';
-    statusBar.innerText = `Starting BFS from ${start}...`;
-    await sleep(getSpeed());
-    if (myGeneration !== workspaceGeneration) return; // navigated away mid-animation
+    try {
+        const visited = new Set([start]);
+        const queue = [start];
+        const order = [];
 
-    while (queue.length > 0) {
-        const current = queue.shift();
-        order.push(current);
-        renderGraph({ comparing: [current], found: [...order] });
+        renderGraph({ comparing: [start] });
         statusBar.className = 'status-message searching';
-        statusBar.innerText = `Visiting ${current}. BFS order: ${order.join(' \u2192 ')}`;
+        statusBar.innerText = `Starting BFS from ${start}...`;
         await sleep(getSpeed());
-        if (myGeneration !== workspaceGeneration) return;
+        if (myGeneration !== workspaceGeneration) return; // navigated away mid-animation
 
-        for (const neighbor of getNeighbors(current)) {
-            if (!visited.has(neighbor)) {
-                visited.add(neighbor);
-                queue.push(neighbor);
+        while (queue.length > 0) {
+            const current = queue.shift();
+            order.push(current);
+            renderGraph({ comparing: [current], found: [...order] });
+            statusBar.className = 'status-message searching';
+            statusBar.innerText = `Visiting ${current}. BFS order: ${order.join(' \u2192 ')}`;
+            await sleep(getSpeed());
+            if (myGeneration !== workspaceGeneration) return;
+
+            for (const neighbor of getNeighbors(current)) {
+                if (!visited.has(neighbor)) {
+                    visited.add(neighbor);
+                    queue.push(neighbor);
+                }
             }
         }
-    }
 
-    renderGraph({ found: order });
-    statusBar.className = 'status-message success';
-    statusBar.innerText = `BFS order: ${order.join(' \u2192 ')}`;
-    graphBusy = false;
+        renderGraph({ found: order });
+        statusBar.className = 'status-message success';
+        statusBar.innerText = `BFS order: ${order.join(' \u2192 ')}`;
+    } finally {
+        graphBusy = false;
+    }
 }
 
 async function dfsTraversal(start) {
@@ -181,34 +185,38 @@ async function dfsTraversal(start) {
 
     graphBusy = true;
     const myGeneration = workspaceGeneration;
-    const visited = new Set();
-    const order = [];
-    let cancelled = false;
 
-    async function visit(node) {
-        if (cancelled) return;
-        visited.add(node);
-        order.push(node);
-        renderGraph({ comparing: [node], found: [...order] });
-        statusBar.className = 'status-message searching';
-        statusBar.innerText = `Visiting ${node}. DFS order: ${order.join(' \u2192 ')}`;
-        await sleep(getSpeed());
-        if (myGeneration !== workspaceGeneration) { cancelled = true; return; }
+    try {
+        const visited = new Set();
+        const order = [];
+        let cancelled = false;
 
-        for (const neighbor of getNeighbors(node)) {
-            if (!visited.has(neighbor)) {
-                await visit(neighbor);
+        async function visit(node) {
+            if (cancelled) return;
+            visited.add(node);
+            order.push(node);
+            renderGraph({ comparing: [node], found: [...order] });
+            statusBar.className = 'status-message searching';
+            statusBar.innerText = `Visiting ${node}. DFS order: ${order.join(' \u2192 ')}`;
+            await sleep(getSpeed());
+            if (myGeneration !== workspaceGeneration) { cancelled = true; return; }
+
+            for (const neighbor of getNeighbors(node)) {
+                if (!visited.has(neighbor)) {
+                    await visit(neighbor);
+                }
             }
         }
+
+        await visit(start);
+        if (cancelled) return;
+
+        renderGraph({ found: order });
+        statusBar.className = 'status-message success';
+        statusBar.innerText = `DFS order: ${order.join(' \u2192 ')}`;
+    } finally {
+        graphBusy = false;
     }
-
-    await visit(start);
-    if (cancelled) return;
-
-    renderGraph({ found: order });
-    statusBar.className = 'status-message success';
-    statusBar.innerText = `DFS order: ${order.join(' \u2192 ')}`;
-    graphBusy = false;
 }
 
 async function generateRandomGraph() {
@@ -240,6 +248,7 @@ async function generateRandomGraph() {
 }
 
 function clearGraph() {
+    workspaceGeneration++; // orphan any pending animation so it can't resurrect after this clear
     graphNodes = {};
     graphEdges = [];
     graphBusy = false;
