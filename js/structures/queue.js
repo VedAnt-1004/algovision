@@ -6,6 +6,14 @@
 // StepPlayer; each function mutates queueState directly and re-renders.
 
 let queueState = [];
+let queueBusy = false; // guards against overlapping Enqueue/Dequeue and against Clear racing a pending animation
+
+function setQueueControlsDisabled(disabled) {
+    ['enqueue-btn', 'dequeue-btn', 'peek-btn', 'clear-btn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.disabled = disabled;
+    });
+}
 
 function renderQueue() {
     const container = document.getElementById('visualizer-container');
@@ -58,38 +66,55 @@ function renderQueue() {
 }
 
 async function enqueue(value) {
-    queueState.push(value);
-    renderQueue();
+    if (queueBusy) return;
+    queueBusy = true;
+    setQueueControlsDisabled(true);
 
-    const statusBar = document.getElementById('status-bar');
-    statusBar.className = 'status-message success';
-    statusBar.innerText = `Enqueued ${value} at the rear`;
+    try {
+        queueState.push(value);
+        renderQueue();
+
+        const statusBar = document.getElementById('status-bar');
+        statusBar.className = 'status-message success';
+        statusBar.innerText = `Enqueued ${value} at the rear`;
+    } finally {
+        queueBusy = false;
+        setQueueControlsDisabled(false);
+    }
 }
 
 async function dequeue() {
+    if (queueBusy) return null;
+    queueBusy = true;
+    setQueueControlsDisabled(true);
     const statusBar = document.getElementById('status-bar');
 
-    if (queueState.length === 0) {
-        statusBar.className = 'status-message error';
-        statusBar.innerText = 'Queue is empty — nothing to dequeue';
-        return null;
+    try {
+        if (queueState.length === 0) {
+            statusBar.className = 'status-message error';
+            statusBar.innerText = 'Queue is empty — nothing to dequeue';
+            return null;
+        }
+
+        const myGeneration = workspaceGeneration;
+        const container = document.getElementById('visualizer-container');
+        const frontWrapper = container.firstElementChild;
+        const frontBlock = frontWrapper ? frontWrapper.querySelector('.array-block') : null;
+        if (frontBlock) frontBlock.classList.add('dequeuing');
+
+        await sleep(300); // matches the .array-block CSS transition duration
+        if (myGeneration !== workspaceGeneration) return null; // navigated away or cleared mid-animation
+
+        const dequeued = queueState.shift();
+        renderQueue();
+
+        statusBar.className = 'status-message success';
+        statusBar.innerText = `Dequeued ${dequeued} from the front`;
+        return dequeued;
+    } finally {
+        queueBusy = false;
+        setQueueControlsDisabled(false);
     }
-
-    const myGeneration = workspaceGeneration;
-    const container = document.getElementById('visualizer-container');
-    const frontWrapper = container.firstElementChild;
-    const frontBlock = frontWrapper ? frontWrapper.querySelector('.array-block') : null;
-    if (frontBlock) frontBlock.classList.add('dequeuing');
-
-    await sleep(300); // matches the .array-block CSS transition duration
-    if (myGeneration !== workspaceGeneration) return null; // navigated away mid-animation
-
-    const dequeued = queueState.shift();
-    renderQueue();
-
-    statusBar.className = 'status-message success';
-    statusBar.innerText = `Dequeued ${dequeued} from the front`;
-    return dequeued;
 }
 
 function peekQueue() {
@@ -108,7 +133,10 @@ function peekQueue() {
 }
 
 function clearQueue() {
+    workspaceGeneration++; // orphan any pending dequeue animation so it can't resurrect after this clear
     queueState = [];
+    queueBusy = false;
+    setQueueControlsDisabled(false);
     renderQueue();
     const statusBar = document.getElementById('status-bar');
     if (statusBar) statusBar.className = 'status-message hidden';
