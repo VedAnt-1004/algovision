@@ -150,31 +150,33 @@ async function insertNode(value) {
     const myGeneration = workspaceGeneration;
     const statusBar = document.getElementById('status-bar');
 
-    // Walk down showing the comparison path before actually inserting,
-    // matching search's "visit and compare" visual language.
-    let current = treeRoot;
-    while (current) {
-        renderTree({ comparing: [current.value] });
-        statusBar.className = 'status-message searching';
-        statusBar.innerText = `Comparing ${value} with ${current.value}...`;
-        await sleep(getSpeed());
-        if (myGeneration !== workspaceGeneration) return; // navigated away mid-animation
+    try {
+        // Walk down showing the comparison path before actually inserting,
+        // matching search's "visit and compare" visual language.
+        let current = treeRoot;
+        while (current) {
+            renderTree({ comparing: [current.value] });
+            statusBar.className = 'status-message searching';
+            statusBar.innerText = `Comparing ${value} with ${current.value}...`;
+            await sleep(getSpeed());
+            if (myGeneration !== workspaceGeneration) return; // navigated away mid-animation
 
-        if (value === current.value) {
-            statusBar.className = 'status-message error';
-            statusBar.innerText = `${value} already exists in the tree`;
-            renderTree();
-            treeBusy = false;
-            return;
+            if (value === current.value) {
+                statusBar.className = 'status-message error';
+                statusBar.innerText = `${value} already exists in the tree`;
+                renderTree();
+                return;
+            }
+            current = value < current.value ? current.left : current.right;
         }
-        current = value < current.value ? current.left : current.right;
-    }
 
-    treeRoot = insertIntoTree(treeRoot, value);
-    renderTree({ found: [value] });
-    statusBar.className = 'status-message success';
-    statusBar.innerText = `Inserted ${value}`;
-    treeBusy = false;
+        treeRoot = insertIntoTree(treeRoot, value);
+        renderTree({ found: [value] });
+        statusBar.className = 'status-message success';
+        statusBar.innerText = `Inserted ${value}`;
+    } finally {
+        treeBusy = false;
+    }
 }
 
 async function searchTree(value) {
@@ -182,29 +184,31 @@ async function searchTree(value) {
     treeBusy = true;
     const myGeneration = workspaceGeneration;
     const statusBar = document.getElementById('status-bar');
-    let current = treeRoot;
 
-    while (current) {
-        renderTree({ comparing: [current.value] });
-        statusBar.className = 'status-message searching';
-        statusBar.innerText = `Checking ${current.value}...`;
-        await sleep(getSpeed());
-        if (myGeneration !== workspaceGeneration) return;
+    try {
+        let current = treeRoot;
+        while (current) {
+            renderTree({ comparing: [current.value] });
+            statusBar.className = 'status-message searching';
+            statusBar.innerText = `Checking ${current.value}...`;
+            await sleep(getSpeed());
+            if (myGeneration !== workspaceGeneration) return;
 
-        if (value === current.value) {
-            renderTree({ found: [value] });
-            statusBar.className = 'status-message success';
-            statusBar.innerText = `Found ${value}!`;
-            treeBusy = false;
-            return;
+            if (value === current.value) {
+                renderTree({ found: [value] });
+                statusBar.className = 'status-message success';
+                statusBar.innerText = `Found ${value}!`;
+                return;
+            }
+            current = value < current.value ? current.left : current.right;
         }
-        current = value < current.value ? current.left : current.right;
-    }
 
-    renderTree();
-    statusBar.className = 'status-message error';
-    statusBar.innerText = `${value} not found in the tree`;
-    treeBusy = false;
+        renderTree();
+        statusBar.className = 'status-message error';
+        statusBar.innerText = `${value} not found in the tree`;
+    } finally {
+        treeBusy = false;
+    }
 }
 
 async function deleteNode(value) {
@@ -213,32 +217,34 @@ async function deleteNode(value) {
     const myGeneration = workspaceGeneration;
     const statusBar = document.getElementById('status-bar');
 
-    // Confirm it exists first, with the same visual walk as search
-    let current = treeRoot;
-    let exists = false;
-    while (current) {
-        renderTree({ comparing: [current.value] });
-        statusBar.className = 'status-message searching';
-        statusBar.innerText = `Looking for ${value} to delete...`;
-        await sleep(getSpeed());
-        if (myGeneration !== workspaceGeneration) return;
-        if (value === current.value) { exists = true; break; }
-        current = value < current.value ? current.left : current.right;
-    }
+    try {
+        // Confirm it exists first, with the same visual walk as search
+        let current = treeRoot;
+        let exists = false;
+        while (current) {
+            renderTree({ comparing: [current.value] });
+            statusBar.className = 'status-message searching';
+            statusBar.innerText = `Looking for ${value} to delete...`;
+            await sleep(getSpeed());
+            if (myGeneration !== workspaceGeneration) return;
+            if (value === current.value) { exists = true; break; }
+            current = value < current.value ? current.left : current.right;
+        }
 
-    if (!exists) {
+        if (!exists) {
+            renderTree();
+            statusBar.className = 'status-message error';
+            statusBar.innerText = `${value} not found — nothing to delete`;
+            return;
+        }
+
+        treeRoot = deleteFromTree(treeRoot, value);
         renderTree();
-        statusBar.className = 'status-message error';
-        statusBar.innerText = `${value} not found — nothing to delete`;
+        statusBar.className = 'status-message success';
+        statusBar.innerText = `Deleted ${value}`;
+    } finally {
         treeBusy = false;
-        return;
     }
-
-    treeRoot = deleteFromTree(treeRoot, value);
-    renderTree();
-    statusBar.className = 'status-message success';
-    statusBar.innerText = `Deleted ${value}`;
-    treeBusy = false;
 }
 
 async function runTraversal(order) {
@@ -253,35 +259,39 @@ async function runTraversal(order) {
     const myGeneration = workspaceGeneration;
     const statusBar = document.getElementById('status-bar');
 
-    const orderedNodes = [];
-    function collect(node) {
-        if (!node) return;
-        if (order === 'preorder') orderedNodes.push(node);
-        collect(node.left);
-        if (order === 'inorder') orderedNodes.push(node);
-        collect(node.right);
-        if (order === 'postorder') orderedNodes.push(node);
-    }
-    collect(treeRoot);
+    try {
+        const orderedNodes = [];
+        function collect(node) {
+            if (!node) return;
+            if (order === 'preorder') orderedNodes.push(node);
+            collect(node.left);
+            if (order === 'inorder') orderedNodes.push(node);
+            collect(node.right);
+            if (order === 'postorder') orderedNodes.push(node);
+        }
+        collect(treeRoot);
 
-    const label = order.charAt(0).toUpperCase() + order.slice(1);
-    const visited = [];
-    for (const node of orderedNodes) {
-        renderTree({ comparing: [node.value], found: [...visited] });
-        statusBar.className = 'status-message searching';
-        statusBar.innerText = `${label} traversal: ${visited.concat(node.value).join(' \u2192 ')}`;
-        await sleep(getSpeed());
-        if (myGeneration !== workspaceGeneration) return;
-        visited.push(node.value);
-    }
+        const label = order.charAt(0).toUpperCase() + order.slice(1);
+        const visited = [];
+        for (const node of orderedNodes) {
+            renderTree({ comparing: [node.value], found: [...visited] });
+            statusBar.className = 'status-message searching';
+            statusBar.innerText = `${label} traversal: ${visited.concat(node.value).join(' \u2192 ')}`;
+            await sleep(getSpeed());
+            if (myGeneration !== workspaceGeneration) return;
+            visited.push(node.value);
+        }
 
-    renderTree({ found: visited });
-    statusBar.className = 'status-message success';
-    statusBar.innerText = `${label} traversal complete: ${visited.join(' \u2192 ')}`;
-    treeBusy = false;
+        renderTree({ found: visited });
+        statusBar.className = 'status-message success';
+        statusBar.innerText = `${label} traversal complete: ${visited.join(' \u2192 ')}`;
+    } finally {
+        treeBusy = false;
+    }
 }
 
 function clearTree() {
+    workspaceGeneration++; // orphan any pending animation so it can't resurrect after this clear
     treeRoot = null;
     treeBusy = false;
     renderTree();
