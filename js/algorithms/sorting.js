@@ -9,7 +9,7 @@
 //
 // Step shape: { array, highlights, message, statusClass }
 
-function* bubbleSortSteps(inputArr) {
+export function* bubbleSortSteps(inputArr) {
     const arr = [...inputArr];
     const n = arr.length;
     const sortedIdx = [];
@@ -44,7 +44,7 @@ function* bubbleSortSteps(inputArr) {
     yield { array: [...arr], highlights: { sorted: [...sortedIdx] }, message: 'Array sorted!', statusClass: 'success', phase: 'done' };
 }
 
-function* selectionSortSteps(inputArr) {
+export function* selectionSortSteps(inputArr) {
     const arr = [...inputArr];
     const n = arr.length;
     const sortedIdx = [];
@@ -94,7 +94,7 @@ function* selectionSortSteps(inputArr) {
     yield { array: [...arr], highlights: { sorted: [...sortedIdx] }, message: 'Array sorted!', statusClass: 'success', phase: 'done' };
 }
 
-function* insertionSortSteps(inputArr) {
+export function* insertionSortSteps(inputArr) {
     const arr = [...inputArr];
     const n = arr.length;
 
@@ -148,7 +148,7 @@ function* insertionSortSteps(inputArr) {
     yield { array: [...arr], highlights: { sorted: Array.from({ length: n }, (_, k) => k) }, message: 'Array sorted!', statusClass: 'success', phase: 'done' };
 }
 
-function* mergeSortSteps(inputArr) {
+export function* mergeSortSteps(inputArr) {
     const arr = [...inputArr];
     const n = arr.length;
 
@@ -230,7 +230,7 @@ function* mergeSortSteps(inputArr) {
     yield { array: [...arr], highlights: { sorted: Array.from({ length: n }, (_, k) => k) }, message: 'Array sorted!', statusClass: 'success', phase: 'done' };
 }
 
-function* quickSortSteps(inputArr) {
+export function* quickSortSteps(inputArr) {
     const arr = [...inputArr];
     const n = arr.length;
     const sortedIdx = [];
