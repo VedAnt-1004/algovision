@@ -8,11 +8,13 @@
 // (deterministic, no external force-directed layout library needed) —
 // simplest approach that never overlaps and scales to any node count.
 
-let graphNodes = {};  // id -> { id, x, y }  (x/y recomputed on each render)
-let graphEdges = [];  // [ [u, v], ... ] undirected, deduplicated
+import { sleep, getSpeed, workspaceGeneration, bumpWorkspaceGeneration } from '../visualizer.js';
+
+export let graphNodes = {};  // id -> { id, x, y }  (x/y recomputed on each render)
+export let graphEdges = [];  // [ [u, v], ... ] undirected, deduplicated
 let graphBusy = false; // guards against overlapping animated operations
 
-function getNeighbors(id) {
+export function getNeighbors(id) {
     const neighbors = [];
     graphEdges.forEach(([a, b]) => {
         if (a === id) neighbors.push(b);
@@ -21,7 +23,7 @@ function getNeighbors(id) {
     return neighbors.sort(); // deterministic traversal order
 }
 
-function addNode(id) {
+export function addNode(id) {
     id = String(id).trim();
     if (!id || graphNodes[id]) return false;
     graphNodes[id] = { id };
@@ -29,7 +31,7 @@ function addNode(id) {
     return true;
 }
 
-function addEdge(u, v) {
+export function addEdge(u, v) {
     u = String(u).trim();
     v = String(v).trim();
     if (!graphNodes[u] || !graphNodes[v] || u === v) return false;
@@ -45,7 +47,7 @@ function addEdge(u, v) {
  * STRINGS (not object refs, since nodes are keyed by id already) — amber
  * "actively at this node" vs. green "already visited".
  */
-function renderGraph({ comparing = [], found = [] } = {}) {
+export function renderGraph({ comparing = [], found = [] } = {}) {
     const container = document.getElementById('visualizer-container');
     if (!container) return;
 
@@ -122,7 +124,7 @@ function renderGraph({ comparing = [], found = [] } = {}) {
     container.appendChild(svg);
 }
 
-async function bfsTraversal(start) {
+export async function bfsTraversal(start) {
     if (graphBusy) return;
     start = String(start).trim();
     const statusBar = document.getElementById('status-bar');
@@ -172,7 +174,7 @@ async function bfsTraversal(start) {
     }
 }
 
-async function dfsTraversal(start) {
+export async function dfsTraversal(start) {
     if (graphBusy) return;
     start = String(start).trim();
     const statusBar = document.getElementById('status-bar');
@@ -219,7 +221,7 @@ async function dfsTraversal(start) {
     }
 }
 
-async function generateRandomGraph() {
+export async function generateRandomGraph() {
     if (graphBusy) return;
     clearGraph();
 
@@ -247,12 +249,19 @@ async function generateRandomGraph() {
     statusBar.innerText = 'Generated a random graph';
 }
 
-function clearGraph() {
-    workspaceGeneration++; // orphan any pending animation so it can't resurrect after this clear
+export function clearGraph() {
+    bumpWorkspaceGeneration(); // orphan any pending animation so it can't resurrect after this clear
     graphNodes = {};
     graphEdges = [];
     graphBusy = false;
     renderGraph();
     const statusBar = document.getElementById('status-bar');
     if (statusBar) statusBar.className = 'status-message hidden';
+}
+
+// Resets state without rendering. ES module imports are read-only, so
+// app.js can't assign graphNodes/graphEdges itself when it builds a workspace.
+export function resetGraph() {
+    graphNodes = {};
+    graphEdges = [];
 }
