@@ -4,7 +4,7 @@
 // ==========================================
 // Generators, same contract as sorting.js — see that file's header comment.
 
-function* linearSearchSteps(inputArr, target) {
+export function* linearSearchSteps(inputArr, target) {
     const arr = [...inputArr];
 
     yield { array: [...arr], highlights: {}, message: `Searching for ${target}...`, statusClass: 'searching', phase: 'start' };
@@ -21,7 +21,7 @@ function* linearSearchSteps(inputArr, target) {
     yield { array: [...arr], highlights: {}, message: `Element ${target} not found in the array.`, statusClass: 'error', phase: 'not-found' };
 }
 
-function* binarySearchSteps(inputArr, target) {
+export function* binarySearchSteps(inputArr, target) {
     const arr = [...inputArr];
 
     yield { array: [...arr], highlights: {}, message: `Starting Binary Search for ${target}...`, statusClass: 'searching', phase: 'start' };
