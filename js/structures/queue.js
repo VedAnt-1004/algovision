@@ -5,7 +5,9 @@
 // Same pattern as stack.js — a live, persistent structure. No generator/
 // StepPlayer; each function mutates queueState directly and re-renders.
 
-let queueState = [];
+import { sleep, workspaceGeneration, bumpWorkspaceGeneration } from '../visualizer.js';
+
+export let queueState = [];
 let queueBusy = false; // guards against overlapping Enqueue/Dequeue and against Clear racing a pending animation
 
 function setQueueControlsDisabled(disabled) {
@@ -15,7 +17,7 @@ function setQueueControlsDisabled(disabled) {
     });
 }
 
-function renderQueue() {
+export function renderQueue() {
     const container = document.getElementById('visualizer-container');
     if (!container) return;
 
@@ -65,7 +67,7 @@ function renderQueue() {
     });
 }
 
-async function enqueue(value) {
+export async function enqueue(value) {
     if (queueBusy) return;
     queueBusy = true;
     setQueueControlsDisabled(true);
@@ -83,7 +85,7 @@ async function enqueue(value) {
     }
 }
 
-async function dequeue() {
+export async function dequeue() {
     if (queueBusy) return null;
     queueBusy = true;
     setQueueControlsDisabled(true);
@@ -117,7 +119,7 @@ async function dequeue() {
     }
 }
 
-function peekQueue() {
+export function peekQueue() {
     const statusBar = document.getElementById('status-bar');
 
     if (queueState.length === 0) {
@@ -132,12 +134,18 @@ function peekQueue() {
     return queueState[0];
 }
 
-function clearQueue() {
-    workspaceGeneration++; // orphan any pending dequeue animation so it can't resurrect after this clear
+export function clearQueue() {
+    bumpWorkspaceGeneration(); // orphan any pending dequeue animation so it can't resurrect after this clear
     queueState = [];
     queueBusy = false;
     setQueueControlsDisabled(false);
     renderQueue();
     const statusBar = document.getElementById('status-bar');
     if (statusBar) statusBar.className = 'status-message hidden';
+}
+
+// Resets state without rendering. ES module imports are read-only, so
+// app.js can't do `queueState = []` itself when it builds a workspace.
+export function resetQueue() {
+    queueState = [];
 }
