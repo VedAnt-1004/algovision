@@ -7,7 +7,9 @@
 // step-through run. So there's no generator/StepPlayer here; each function
 // mutates stackState directly and re-renders immediately.
 
-let stackState = [];
+import { sleep, workspaceGeneration, bumpWorkspaceGeneration } from '../visualizer.js';
+
+export let stackState = [];
 let stackBusy = false; // guards against overlapping Push/Pop and against Clear racing a pending animation
 
 function setStackControlsDisabled(disabled) {
@@ -17,7 +19,7 @@ function setStackControlsDisabled(disabled) {
     });
 }
 
-function renderStack() {
+export function renderStack() {
     const container = document.getElementById('visualizer-container');
     if (!container) return;
 
@@ -56,7 +58,7 @@ function renderStack() {
     });
 }
 
-async function pushToStack(value) {
+export async function pushToStack(value) {
     if (stackBusy) return;
     stackBusy = true;
     setStackControlsDisabled(true);
@@ -74,7 +76,7 @@ async function pushToStack(value) {
     }
 }
 
-async function popFromStack() {
+export async function popFromStack() {
     if (stackBusy) return null;
     stackBusy = true;
     setStackControlsDisabled(true);
@@ -108,7 +110,7 @@ async function popFromStack() {
     }
 }
 
-function peekStack() {
+export function peekStack() {
     const statusBar = document.getElementById('status-bar');
 
     if (stackState.length === 0) {
@@ -123,12 +125,18 @@ function peekStack() {
     return stackState[stackState.length - 1];
 }
 
-function clearStack() {
-    workspaceGeneration++; // orphan any pending pop animation so it can't resurrect after this clear
+export function clearStack() {
+    bumpWorkspaceGeneration(); // orphan any pending pop animation so it can't resurrect after this clear
     stackState = [];
     stackBusy = false;
     setStackControlsDisabled(false);
     renderStack();
     const statusBar = document.getElementById('status-bar');
     if (statusBar) statusBar.className = 'status-message hidden';
+}
+
+// Resets state without rendering. ES module imports are read-only, so
+// app.js can't do `stackState = []` itself when it builds a workspace.
+export function resetStack() {
+    stackState = [];
 }
