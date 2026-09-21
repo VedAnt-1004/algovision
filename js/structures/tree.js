@@ -10,14 +10,16 @@
 // left-to-right with no edge crossovers, no external layout library
 // needed), y from recursion depth — same approach the README describes.
 
-let treeRoot = null;
+import { sleep, getSpeed, workspaceGeneration, bumpWorkspaceGeneration } from '../visualizer.js';
+
+export let treeRoot = null;
 let treeBusy = false;
 
-function createTreeNode(value) {
+export function createTreeNode(value) {
     return { value, left: null, right: null };
 }
 
-function insertIntoTree(root, value) {
+export function insertIntoTree(root, value) {
     if (!root) return createTreeNode(value);
     if (value === root.value) return root; // no duplicates
     if (value < root.value) root.left = insertIntoTree(root.left, value);
@@ -25,7 +27,7 @@ function insertIntoTree(root, value) {
     return root;
 }
 
-function findMinNode(root) {
+export function findMinNode(root) {
     let current = root;
     while (current.left) current = current.left;
     return current;
@@ -33,7 +35,7 @@ function findMinNode(root) {
 
 // Classic 3-case BST delete: leaf, one child, two children (replace with
 // in-order successor — the minimum of the right subtree).
-function deleteFromTree(root, value) {
+export function deleteFromTree(root, value) {
     if (!root) return null;
     if (value < root.value) {
         root.left = deleteFromTree(root.left, value);
@@ -55,7 +57,7 @@ function deleteFromTree(root, value) {
  * (not object refs — BST values are assumed unique), matching the
  * id-array convention graph.js uses for its comparing/found highlighting.
  */
-function renderTree({ comparing = [], found = [] } = {}) {
+export function renderTree({ comparing = [], found = [] } = {}) {
     const container = document.getElementById('visualizer-container');
     if (!container) return;
 
@@ -144,7 +146,7 @@ function renderTree({ comparing = [], found = [] } = {}) {
     container.appendChild(svg);
 }
 
-async function insertNode(value) {
+export async function insertNode(value) {
     if (treeBusy) return;
     treeBusy = true;
     const myGeneration = workspaceGeneration;
@@ -179,7 +181,7 @@ async function insertNode(value) {
     }
 }
 
-async function searchTree(value) {
+export async function searchTree(value) {
     if (treeBusy) return;
     treeBusy = true;
     const myGeneration = workspaceGeneration;
@@ -211,7 +213,7 @@ async function searchTree(value) {
     }
 }
 
-async function deleteNode(value) {
+export async function deleteNode(value) {
     if (treeBusy) return;
     treeBusy = true;
     const myGeneration = workspaceGeneration;
@@ -247,7 +249,7 @@ async function deleteNode(value) {
     }
 }
 
-async function runTraversal(order) {
+export async function runTraversal(order) {
     if (!treeRoot) {
         const statusBar = document.getElementById('status-bar');
         statusBar.className = 'status-message error';
@@ -290,11 +292,17 @@ async function runTraversal(order) {
     }
 }
 
-function clearTree() {
-    workspaceGeneration++; // orphan any pending animation so it can't resurrect after this clear
+export function clearTree() {
+    bumpWorkspaceGeneration(); // orphan any pending animation so it can't resurrect after this clear
     treeRoot = null;
     treeBusy = false;
     renderTree();
     const statusBar = document.getElementById('status-bar');
     if (statusBar) statusBar.className = 'status-message hidden';
+}
+
+// Resets state without rendering. ES module imports are read-only, so
+// app.js can't do `treeRoot = null` itself when it builds a workspace.
+export function resetTree() {
+    treeRoot = null;
 }
