@@ -3,7 +3,7 @@
 // ALGORITHM ENCYCLOPEDIA (js/data.js)
 // ==========================================
 
-const algorithmDatabase = {
+export const algorithmDatabase = {
 
     /* ==========================================
        1. SEARCHING ALGORITHMS
