@@ -2,15 +2,34 @@
 // MAIN UI MANAGER
 // ==========================================
 
+import { algorithmDatabase } from './data.js';
+import { setSpeed, StepPlayer, bumpWorkspaceGeneration } from './visualizer.js';
+import { linearSearchSteps, binarySearchSteps } from './algorithms/search.js';
+import {
+    bubbleSortSteps, selectionSortSteps, insertionSortSteps,
+    mergeSortSteps, quickSortSteps
+} from './algorithms/sorting.js';
+import {
+    stackState, renderStack, pushToStack, popFromStack, peekStack, clearStack, resetStack
+} from './structures/stack.js';
+import {
+    queueState, renderQueue, enqueue, dequeue, peekQueue, clearQueue, resetQueue
+} from './structures/queue.js';
+import {
+    renderTree, insertNode, searchTree, deleteNode, runTraversal, clearTree, resetTree
+} from './structures/tree.js';
+import {
+    renderGraph, addNode, addEdge, bfsTraversal, dfsTraversal,
+    generateRandomGraph, clearGraph, resetGraph
+} from './structures/graph.js';
+
 let currentActiveCodes = {}; // Stores code for the currently selected algorithm
 let activePlayer = null; // The StepPlayer currently driving the visualizer, if any
 let currentAlgoId = null; // Which algorithm the workspace is currently showing
-// Incremented every buildWorkspace() call. Structure-mode async operations
-// (tree/graph/stack/queue) capture this at their start and re-check it after
-// each await — if it's changed, the user has navigated to a different
-// workspace mid-animation, and the operation should stop touching the DOM
-// rather than "resurrecting" and overwriting whatever workspace is now showing.
-let workspaceGeneration = 0;
+// The workspace cancellation token (`workspaceGeneration`) now lives in
+// visualizer.js so the structure engines can import it. buildWorkspace()
+// still bumps it on every call via bumpWorkspaceGeneration() — see the
+// comment on the token there for how the async operations use it.
 let lastRenderedStep = null; // The most recent step object, used to re-sync code highlight on tab switch
 
 // --- CODE PANEL: line-by-line rendering + active-line sync ---
@@ -251,7 +270,7 @@ function buildWorkspace(algoId) {
 
     currentAlgoId = algoId;
     lastRenderedStep = null; // fresh workspace, no step to highlight yet
-    workspaceGeneration++; // invalidate any in-flight tree/graph/stack/queue animation from the previous workspace
+    bumpWorkspaceGeneration(); // invalidate any in-flight tree/graph/stack/queue animation from the previous workspace
 
     // Update UI Labels
     const navTitle = document.getElementById('nav-title');
@@ -453,7 +472,7 @@ function buildWorkspace(algoId) {
 
     else if (data.type === "stack") {
         // Live/persistent structure — no step player, no playback row.
-        stackState = [];
+        resetStack();
 
         controlsZone.innerHTML = `
             <div class="dock-zone dock-zone-setup">
@@ -514,7 +533,7 @@ function buildWorkspace(algoId) {
     }
 
     else if (data.type === "queue") {
-        queueState = [];
+        resetQueue();
 
         controlsZone.innerHTML = `
             <div class="dock-zone dock-zone-setup">
@@ -574,7 +593,7 @@ function buildWorkspace(algoId) {
     }
 
     else if (data.type === "tree") {
-        treeRoot = null;
+        resetTree();
 
         controlsZone.innerHTML = `
             <div class="dock-zone dock-zone-setup">
@@ -672,8 +691,7 @@ function buildWorkspace(algoId) {
     }
 
     else if (data.type === "graph") {
-        graphNodes = {};
-        graphEdges = [];
+        resetGraph();
 
         controlsZone.innerHTML = `
             <div class="dock-zone dock-zone-setup">
@@ -960,7 +978,9 @@ function resetSessionHistory() {
 }
 
 // --- 4. EVENT LISTENERS (ON LOAD) ---
-document.addEventListener('DOMContentLoaded', () => {
+// Exported so tests can call it after building a DOM; in a browser it runs
+// automatically (see the guarded boot at the bottom of this file).
+export function init() {
 
     // Theory Drawer (spec §4.1) — persistent edge peek-tab opens a real
     // slide-in drawer (right rail on desktop, bottom sheet on mobile via
@@ -1116,4 +1136,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-});
+}
+
+// Boot only when a DOM exists, so importing this file from Node/Jest with no
+// `document` does not throw. `type="module"` scripts are deferred, so the DOM
+// is normally already parsed here; the readyState check covers both cases.
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+}
