@@ -2,56 +2,81 @@
 // ==========================================
 // UNIVERSAL ANIMATION ENGINE (The Artist)
 // ==========================================
-const visualizerContainer = document.getElementById('visualizer-container');
+
+// Looked up lazily (on every call) instead of once at load time, so this
+// module can be imported in Node/Jest where `document` doesn't exist yet.
+function getVisualizerContainer() {
+    return document.getElementById('visualizer-container');
+}
 
 // --- SHARED SPEED CONTROL ---
 // Every algorithm engine (search, sorting, future ones) reads its delay
 // from here, so one slider in the UI controls all of them consistently.
 let animationSpeed = 500; // milliseconds
 
-function setSpeed(ms) {
+export function setSpeed(ms) {
     animationSpeed = ms;
 }
 
-function getSpeed() {
+export function getSpeed() {
     return animationSpeed;
 }
 
-/**
- * Takes an array of numbers and draws them as blocks on the screen
- */
-function drawArray(arr) {
-    visualizerContainer.innerHTML = ''; // Clear the board
-    previousActiveIndices = []; // fresh run — no ghost trail carries over (spec §5.1)
+// --- WORKSPACE GENERATION (cancellation token) ---
+// Incremented every buildWorkspace() call (and by each structure's clear).
+// Structure-mode async operations (tree/graph/stack/queue) capture this at
+// their start and re-check it after each await — if it's changed, the user
+// has navigated to a different workspace mid-animation, and the operation
+// should stop touching the DOM rather than "resurrecting" and overwriting
+// whatever workspace is now showing.
+//
+// Lives here (not in app.js) because ES module imports can't be circular
+// without pain: app.js imports the structure engines, and the engines need
+// the token. Importers read it as a live binding; only this module can
+// change it, via bumpWorkspaceGeneration().
+export let workspaceGeneration = 0;
 
-    arr.forEach((value, index) => {
-        // 1. Create the outer wrapper
-        const wrapper = document.createElement('div');
-        wrapper.classList.add('block-wrapper');
-
-        // 2. Create the main square block
-        const block = document.createElement('div');
-        block.classList.add('array-block');
-        block.id = `block-${index}`; // Give it an ID so we can color it later
-        block.innerText = value;
-
-        // 3. Create the little index label underneath [0], [1], etc.
-        const indexLabel = document.createElement('span');
-        indexLabel.classList.add('block-index');
-        indexLabel.innerText = `[${index}]`;
-
-        // 4. Put them together and add to the screen
-        wrapper.appendChild(block);
-        wrapper.appendChild(indexLabel);
-        visualizerContainer.appendChild(wrapper);
-    });
+export function bumpWorkspaceGeneration() {
+    workspaceGeneration++;
 }
 
 /**
- * Simple helper to pause code execution (used for animations)
- */
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+ * Takes an array of numbers and draws them as blocks on the screen
+ */
+export function drawArray(arr) {
+    const visualizerContainer = getVisualizerContainer();
+    if (!visualizerContainer) return;
+    visualizerContainer.innerHTML = ''; // Clear the board
+    previousActiveIndices = []; // fresh run — no ghost trail carries over (spec §5.1)
+
+    arr.forEach((value, index) => {
+        // 1. Create the outer wrapper
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('block-wrapper');
+
+        // 2. Create the main square block
+        const block = document.createElement('div');
+        block.classList.add('array-block');
+        block.id = `block-${index}`; // Give it an ID so we can color it later
+        block.innerText = value;
+
+        // 3. Create the little index label underneath [0], [1], etc.
+        const indexLabel = document.createElement('span');
+        indexLabel.classList.add('block-index');
+        indexLabel.innerText = `[${index}]`;
+
+        // 4. Put them together and add to the screen
+        wrapper.appendChild(block);
+        wrapper.appendChild(indexLabel);
+        visualizerContainer.appendChild(wrapper);
+    });
+}
+
+/**
+ * Simple helper to pause code execution (used for animations)
+ */
+export function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // ==========================================
@@ -64,7 +89,7 @@ function sleep(ms) {
  *
  * step.highlights supports: comparing[], current[], sorted[], dimmed[], found (single index)
  */
-function renderStep(step) {
+export function renderStep(step) {
     if (!step) return;
     const { array, highlights = {}, message = '', statusClass = 'searching' } = step;
 
@@ -145,7 +170,7 @@ function applyGhostTrail(blocks, newHighlights) {
 // ==========================================
 // STEP PLAYER (drives any generator-based algorithm engine)
 // ==========================================
-class StepPlayer {
+export class StepPlayer {
     /**
      * @param {GeneratorFunction} generatorFn - a function* that yields step objects
      * @param {...any} args - arguments passed to generatorFn (e.g. array, target)
