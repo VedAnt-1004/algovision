@@ -1,0 +1,28 @@
+{
+  "name": "algovision",
+  "version": "1.0.0",
+  "description": "**Interactive Data Structures & Algorithms Visualizer**",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VedAnt-1004/algovision.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/VedAnt-1004/algovision/issues"
+  },
+  "homepage": "https://github.com/VedAnt-1004/algovision#readme",
+  "devDependencies": {
+    "@babel/preset-env": "^8.0.6",
+    "babel-jest": "^30.5.2",
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2"
+  }
+}
