@@ -5,6 +5,8 @@
 
 ---
 
+[![CI Test Suite](https://github.com/VedAnt-1004/algovision/actions/workflows/ci.yml/badge.svg)](https://github.com/VedAnt-1004/algovision/actions/workflows/ci.yml)
+
 ## 📌 Overview
 AlgoVision is an interactive DSA visualization platform supporting searching, sorting, stacks, queues, binary search trees, and graph traversal. Built with a focus on step-by-step execution control and synchronized source-code tracking, it turns abstract algorithm logic into an inspectable debugging experience.
 
