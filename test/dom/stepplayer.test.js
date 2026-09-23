@@ -29,7 +29,7 @@
 // (not continuously), and StepPlayer itself has no guard against a second
 // concurrent play() call (see "known quirks" at the bottom).
 
-import { StepPlayer, setSpeed, getSpeed } from '../../js/visualizer.js';
+import { StepPlayer, setSpeed } from '../../js/visualizer.js';
 
 // ---------- Helpers ----------
 
