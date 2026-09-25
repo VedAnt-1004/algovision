@@ -20,6 +20,17 @@
     "url": "https://github.com/VedAnt-1004/algovision/issues"
   },
   "homepage": "https://github.com/VedAnt-1004/algovision#readme",
+  "jest": {
+    "collectCoverage": true,
+    "coverageThreshold": {
+      "global": {
+        "branches": 90,
+        "functions": 90,
+        "lines": 90,
+        "statements": 90
+      }
+    }
+  },
   "devDependencies": {
     "@babel/preset-env": "^8.0.6",
     "@eslint/js": "^10.0.1",
