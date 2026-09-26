@@ -115,6 +115,25 @@
     --radius-full: 999px;
     /* Pill nav, filter tabs */
 
+    /* --- §1.6 Code Syntax Palette (Phase 2) ---
+       New, independent from the locked Visualizer State (§1.3) and
+       Category (§1.2) palettes above — never reuse those tokens for
+       code-token coloring, and never let this palette bleed into
+       state/category roles. Consumed by the .hljs-* rules in
+       Section 14 at the bottom of this file. */
+    --code-keyword: #7C3AED;
+    /* control-flow & declaration keywords: if/for/while/function/class/def/int/bool... */
+    --code-string: #15803D;
+    /* string literals */
+    --code-comment: #94A3B8;
+    /* comments */
+    --code-number: #B45309;
+    /* numeric + literal values (true/false/None/nullptr) */
+    --code-function: #0F766E;
+    /* function/class names */
+    --code-type: #BE185D;
+    /* C++ primitive/container types (int, bool, vector, string) */
+
     /* --- §3 Elevation Scale (4-Tier) ---
        Rule: a component may only use its own tier's shadow/border/
        z-index — never borrow from an adjacent tier. */
@@ -2274,4 +2293,46 @@ code {
         width: 10px;
         height: 10px;
     }
+}
+
+
+/* ==========================================
+   SECTION 14: SYNTAX HIGHLIGHTING (Phase 2 — Multi-Language Execution)
+   ========================================== */
+/* Token classes applied by highlight.js (see app.js highlightLines()).
+   Deliberately its own palette (§1.6) — never the locked state/category
+   tokens — so code coloring can never be mistaken for a visualizer cue. */
+.hljs-keyword,
+.hljs-built_in {
+    color: var(--code-keyword);
+    font-weight: 600;
+}
+
+.hljs-string {
+    color: var(--code-string);
+}
+
+.hljs-comment {
+    color: var(--code-comment);
+    font-style: italic;
+}
+
+.hljs-number,
+.hljs-literal {
+    color: var(--code-number);
+}
+
+.hljs-title,
+.hljs-title.function_ {
+    color: var(--code-function);
+    font-weight: 600;
+}
+
+.hljs-type {
+    color: var(--code-type);
+}
+
+.hljs-params,
+.hljs-variable {
+    color: var(--panel-dark);
 }
