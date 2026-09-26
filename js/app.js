@@ -1,5 +1,5 @@
-/* global algorithmDatabase, setSpeed, StepPlayer, linearSearchSteps, binarySearchSteps, bubbleSortSteps, selectionSortSteps, insertionSortSteps, mergeSortSteps, quickSortSteps, stackState, renderStack, pushToStack, popFromStack, peekStack, clearStack, queueState, renderQueue, enqueue, dequeue, peekQueue, clearQueue, treeRoot, renderTree, insertNode, searchTree, deleteNode, clearTree, runTraversal, graphNodes, graphEdges, renderGraph, addNode, addEdge, bfsTraversal, dfsTraversal, generateRandomGraph, clearGraph */
-/* exported workspaceGeneration */
+/* global algorithmDatabase, setSpeed, StepPlayer, linearSearchSteps, binarySearchSteps, bubbleSortSteps, selectionSortSteps, insertionSortSteps, mergeSortSteps, quickSortSteps, renderStack, pushToStack, popFromStack, peekStack, clearStack, renderQueue, enqueue, dequeue, peekQueue, clearQueue, renderTree, insertNode, searchTree, deleteNode, clearTree, runTraversal, renderGraph, addNode, addEdge, bfsTraversal, dfsTraversal, generateRandomGraph, clearGraph */
+/* global stackState:true, queueState:true */
 
 // ==========================================
 // MAIN UI MANAGER
@@ -9,11 +9,13 @@ let currentActiveCodes = {}; // Stores code for the currently selected algorithm
 let activePlayer = null; // The StepPlayer currently driving the visualizer, if any
 let currentAlgoId = null; // Which algorithm the workspace is currently showing
 let currentLanguageKey = 'javascript'; // Which code-panel language tab is active ('javascript' | 'python' | 'cpp') — tracked so the hljs-ready listener knows what to re-render once syntax highlighting finishes loading
+
 // Incremented every buildWorkspace() call. Structure-mode async operations
 // (tree/graph/stack/queue) capture this at their start and re-check it after
 // each await — if it's changed, the user has navigated to a different
 // workspace mid-animation, and the operation should stop touching the DOM
 // rather than "resurrecting" and overwriting whatever workspace is now showing.
+// eslint-disable-next-line no-unused-vars
 let workspaceGeneration = 0;
 let lastRenderedStep = null; // The most recent step object, used to re-sync code highlight on tab switch
 
@@ -653,6 +655,7 @@ function buildWorkspace(algoId) {
     }
 
     else if (data.type === "tree") {
+        // eslint-disable-next-line no-undef
         treeRoot = null;
 
         controlsZone.innerHTML = `
@@ -751,7 +754,9 @@ function buildWorkspace(algoId) {
     }
 
     else if (data.type === "graph") {
+        // eslint-disable-next-line no-undef
         graphNodes = {};
+        // eslint-disable-next-line no-undef
         graphEdges = [];
 
         controlsZone.innerHTML = `
