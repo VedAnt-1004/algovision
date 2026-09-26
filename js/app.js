@@ -1,3 +1,6 @@
+/* global algorithmDatabase, setSpeed, StepPlayer, linearSearchSteps, binarySearchSteps, bubbleSortSteps, selectionSortSteps, insertionSortSteps, mergeSortSteps, quickSortSteps, stackState, renderStack, pushToStack, popFromStack, peekStack, clearStack, queueState, renderQueue, enqueue, dequeue, peekQueue, clearQueue, treeRoot, renderTree, insertNode, searchTree, deleteNode, clearTree, runTraversal, graphNodes, graphEdges, renderGraph, addNode, addEdge, bfsTraversal, dfsTraversal, generateRandomGraph, clearGraph */
+/* exported workspaceGeneration */
+
 // ==========================================
 // MAIN UI MANAGER
 // ==========================================
@@ -83,6 +86,7 @@ function highlightLines(codeString, languageKey) {
         const highlighted = window.hljs.highlight(codeString, { language: hljsLang, ignoreIllegals: true }).value;
         return splitHighlightedIntoLines(highlighted);
     } catch (e) {
+        console.error("Syntax highlighting failed:", e);
         return codeString.split('\n').map(escapeHtml);
     }
 }
