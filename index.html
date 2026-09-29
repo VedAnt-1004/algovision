@@ -222,34 +222,12 @@
         </main>
     </section>
 
-    <!-- Phase 2: Multi-Language Execution — loads highlight.js core plus
-         only the 3 grammars this project uses (javascript/python/cpp), as
-         native ES modules straight from cdnjs. No bundler, no full
-         all-languages bundle. Exposed on `window.hljs` because the rest of
-         the codebase (data.js, app.js, etc.) still loads as classic
-         scripts, not modules. -->
-    <script type="module">
-        import hljs from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/es/highlight.min.js';
-        import javascript from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/es/languages/javascript.min.js';
-        import python from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/es/languages/python.min.js';
-        import cpp from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/es/languages/cpp.min.js';
-
-        hljs.registerLanguage('javascript', javascript);
-        hljs.registerLanguage('python', python);
-        hljs.registerLanguage('cpp', cpp);
-
-        window.hljs = hljs;
-        window.dispatchEvent(new Event('algovision:hljs-ready'));
-    </script>
-    <script src="js/data.js"></script>
-    <script src="js/visualizer.js"></script>
-    <script src="js/algorithms/search.js"></script>
-    <script src="js/algorithms/sorting.js"></script>
-    <script src="js/structures/stack.js"></script>
-    <script src="js/structures/queue.js"></script>
-    <script src="js/structures/tree.js"></script>
-    <script src="js/structures/graph.js"></script>
-    <script src="js/app.js"></script>
+    <!-- Single ES-module entry point. app.js pulls in data.js, visualizer.js,
+         every algorithms/*.js and structures/*.js file, and highlight.js
+         (core + javascript/python/cpp grammars, from cdnjs) via native
+         `import` statements — no bundler, no other <script> tags needed;
+         the browser resolves and loads the whole module graph from here. -->
+    <script type="module" src="js/app.js"></script>
 </body>
 
 </html>
