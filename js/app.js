@@ -1,36 +1,78 @@
-/* global algorithmDatabase, setSpeed, StepPlayer, linearSearchSteps, binarySearchSteps, bubbleSortSteps, selectionSortSteps, insertionSortSteps, mergeSortSteps, quickSortSteps, renderStack, pushToStack, popFromStack, peekStack, clearStack, renderQueue, enqueue, dequeue, peekQueue, clearQueue, renderTree, insertNode, searchTree, deleteNode, clearTree, runTraversal, renderGraph, addNode, addEdge, bfsTraversal, dfsTraversal, generateRandomGraph, clearGraph */
-/* global stackState:true, queueState:true */
-
 // ==========================================
 // MAIN UI MANAGER
 // ==========================================
 
+// highlight.js core + the javascript/python/cpp language modules, as native
+// ES modules straight from cdnjs — no bundler, no full all-languages
+// bundle. Because app.js itself is loaded as `type="module"`, these imports
+// are fully resolved and registered below before any of this module's own
+// code (including the DOMContentLoaded listener) runs, so there's no
+// "hljs not ready yet" race to guard against elsewhere in this file.
+import hljs from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/es/highlight.min.js';
+import javascript from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/es/languages/javascript.min.js';
+import python from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/es/languages/python.min.js';
+import cpp from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/es/languages/cpp.min.js';
+
+import { algorithmDatabase } from './data.js';
+import { setSpeed, StepPlayer, bumpWorkspaceGeneration } from './visualizer.js';
+import { linearSearchSteps, binarySearchSteps } from './algorithms/search.js';
+import {
+    bubbleSortSteps,
+    selectionSortSteps,
+    insertionSortSteps,
+    mergeSortSteps,
+    quickSortSteps
+} from './algorithms/sorting.js';
+import {
+    renderStack,
+    pushToStack,
+    popFromStack,
+    peekStack,
+    clearStack,
+    resetStack,
+    stackState
+} from './structures/stack.js';
+import {
+    renderQueue,
+    enqueue,
+    dequeue,
+    peekQueue,
+    clearQueue,
+    resetQueue,
+    queueState
+} from './structures/queue.js';
+import {
+    renderTree,
+    insertNode,
+    searchTree,
+    deleteNode,
+    clearTree,
+    runTraversal,
+    resetTree
+} from './structures/tree.js';
+import {
+    renderGraph,
+    addNode,
+    addEdge,
+    bfsTraversal,
+    dfsTraversal,
+    generateRandomGraph,
+    clearGraph,
+    resetGraph
+} from './structures/graph.js';
+
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('cpp', cpp);
+
 let currentActiveCodes = {}; // Stores code for the currently selected algorithm
 let activePlayer = null; // The StepPlayer currently driving the visualizer, if any
 let currentAlgoId = null; // Which algorithm the workspace is currently showing
-let currentLanguageKey = 'javascript'; // Which code-panel language tab is active ('javascript' | 'python' | 'cpp') — tracked so the hljs-ready listener knows what to re-render once syntax highlighting finishes loading
-
-// Incremented every buildWorkspace() call. Structure-mode async operations
-// (tree/graph/stack/queue) capture this at their start and re-check it after
-// each await — if it's changed, the user has navigated to a different
-// workspace mid-animation, and the operation should stop touching the DOM
-// rather than "resurrecting" and overwriting whatever workspace is now showing.
-// eslint-disable-next-line no-unused-vars
-let workspaceGeneration = 0;
 let lastRenderedStep = null; // The most recent step object, used to re-sync code highlight on tab switch
 
 // ==========================================
-// SYNTAX HIGHLIGHTING BRIDGE (Phase 2: Multi-Language Execution)
+// SYNTAX HIGHLIGHTING (Phase 2: Multi-Language Execution)
 // ==========================================
-// highlight.js core + the javascript/python/cpp language modules are loaded
-// as native ES modules by the <script type="module"> bootstrap in
-// index.html and exposed as `window.hljs` once registered (this file is
-// still loaded as a classic script, so it reads hljs off `window` rather
-// than importing it directly). Module scripts are deferred and fetched
-// async, so hljs may not be ready the instant the first workspace opens —
-// every path below falls back to plain escaped text, and the
-// 'algovision:hljs-ready' listener (see DOMContentLoaded) re-renders the
-// current code panel once it arrives.
 const HLJS_LANGUAGE_MAP = { javascript: 'javascript', python: 'python', cpp: 'cpp' };
 
 function escapeHtml(str) {
@@ -73,19 +115,15 @@ function splitHighlightedIntoLines(highlightedHtml) {
     return lines;
 }
 
-// Returns one HTML string per source line. Syntax-highlighted via hljs
-// when it's loaded and knows the language; otherwise plain escaped text
-// (matches the pre-Phase-2 rendering exactly, so there's no broken/half
-// state visible while hljs is still loading).
+// Returns one HTML string per source line, syntax-highlighted via hljs.
+// Falls back to plain escaped text if highlighting throws for any reason
+// (e.g. an unexpected token hljs can't tokenize) so a bad snippet degrades
+// gracefully instead of leaving the code panel blank.
 function highlightLines(codeString, languageKey) {
     const hljsLang = HLJS_LANGUAGE_MAP[languageKey] || 'javascript';
 
-    if (!window.hljs) {
-        return codeString.split('\n').map(escapeHtml);
-    }
-
     try {
-        const highlighted = window.hljs.highlight(codeString, { language: hljsLang, ignoreIllegals: true }).value;
+        const highlighted = hljs.highlight(codeString, { language: hljsLang, ignoreIllegals: true }).value;
         return splitHighlightedIntoLines(highlighted);
     } catch (e) {
         console.error("Syntax highlighting failed:", e);
@@ -323,7 +361,7 @@ function applyDashboardFilters() {
 // --- 3. WORKSPACE BUILDER (Unchanged) ---
 function buildWorkspace(algoId) {
     const data = algorithmDatabase[algoId];
-    
+
     if (!data) {
         console.error("Algorithm not found in database:", algoId);
         return;
@@ -331,23 +369,22 @@ function buildWorkspace(algoId) {
 
     currentAlgoId = algoId;
     lastRenderedStep = null; // fresh workspace, no step to highlight yet
-    workspaceGeneration++; // invalidate any in-flight tree/graph/stack/queue animation from the previous workspace
+    bumpWorkspaceGeneration(); // invalidate any in-flight tree/graph/stack/queue animation from the previous workspace
 
     // Update UI Labels
     const navTitle = document.getElementById('nav-title');
     const desc = document.getElementById('algo-description');
     const timeW = document.getElementById('time-worst');
     const spaceC = document.getElementById('space-complexity');
-    
+
     if (navTitle) navTitle.innerText = data.title;
     if (desc) desc.innerText = data.description;
     if (timeW) timeW.innerText = data.complexities.worst;
     if (spaceC) spaceC.innerText = data.complexities.space;
-    
+
     if (data.code) {
-        currentActiveCodes = data.code; 
-        currentLanguageKey = 'javascript';
-        renderCodeLines(currentActiveCodes.javascript, currentLanguageKey); // Default to JS
+        currentActiveCodes = data.code;
+        renderCodeLines(currentActiveCodes.javascript, 'javascript'); // Default to JS
 
         const tabs = document.querySelectorAll('.tab-btn');
         tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
@@ -534,7 +571,7 @@ function buildWorkspace(algoId) {
 
     else if (data.type === "stack") {
         // Live/persistent structure — no step player, no playback row.
-        stackState = [];
+        resetStack();
 
         controlsZone.innerHTML = `
             <div class="dock-zone dock-zone-setup">
@@ -595,7 +632,7 @@ function buildWorkspace(algoId) {
     }
 
     else if (data.type === "queue") {
-        queueState = [];
+        resetQueue();
 
         controlsZone.innerHTML = `
             <div class="dock-zone dock-zone-setup">
@@ -655,8 +692,7 @@ function buildWorkspace(algoId) {
     }
 
     else if (data.type === "tree") {
-        // eslint-disable-next-line no-undef
-        treeRoot = null;
+        resetTree();
 
         controlsZone.innerHTML = `
             <div class="dock-zone dock-zone-setup">
@@ -754,10 +790,7 @@ function buildWorkspace(algoId) {
     }
 
     else if (data.type === "graph") {
-        // eslint-disable-next-line no-undef
-        graphNodes = {};
-        // eslint-disable-next-line no-undef
-        graphEdges = [];
+        resetGraph();
 
         controlsZone.innerHTML = `
             <div class="dock-zone dock-zone-setup">
@@ -1087,7 +1120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             closeTheoryDrawer();
         }
     });
-    
+
     // Welcome Screen -> Dashboard
     const getStartedBtn = document.getElementById('get-started-btn');
     if (getStartedBtn) {
@@ -1167,11 +1200,9 @@ document.addEventListener('DOMContentLoaded', () => {
             e.target.setAttribute('aria-selected', 'true');
 
             const selectedLang = e.target.innerText;
-            let dataKey = 'javascript'; 
+            let dataKey = 'javascript';
             if (selectedLang === 'Python') dataKey = 'python';
-            if (selectedLang === 'C++') dataKey = 'cpp'; 
-
-            currentLanguageKey = dataKey;
+            if (selectedLang === 'C++') dataKey = 'cpp';
 
             if (currentActiveCodes && currentActiveCodes[dataKey]) {
                 renderCodeLines(currentActiveCodes[dataKey], dataKey);
@@ -1203,15 +1234,4 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-
-    // Fires once the ES-module hljs bootstrap (index.html) has loaded core
-    // + the javascript/python/cpp grammars and exposed window.hljs. If a
-    // workspace is already open, re-render its current code panel so the
-    // plain-text fallback gets replaced with real syntax highlighting.
-    window.addEventListener('algovision:hljs-ready', () => {
-        if (currentActiveCodes && currentActiveCodes[currentLanguageKey]) {
-            renderCodeLines(currentActiveCodes[currentLanguageKey], currentLanguageKey);
-            refreshCodeHighlight();
-        }
-    });
 });
