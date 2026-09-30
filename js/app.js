@@ -14,7 +14,7 @@ import python from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/e
 import cpp from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/es/languages/cpp.min.js';
 
 import { algorithmDatabase } from './data.js';
-import { setSpeed, StepPlayer, bumpWorkspaceGeneration } from './visualizer.js';
+import { setSpeed, getSpeed, sleep, StepPlayer, bumpWorkspaceGeneration, workspaceGeneration } from './visualizer.js';
 import { linearSearchSteps, binarySearchSteps } from './algorithms/search.js';
 import {
     bubbleSortSteps,
@@ -42,23 +42,29 @@ import {
     queueState
 } from './structures/queue.js';
 import {
+    treeRoot,
     renderTree,
     insertNode,
     searchTree,
     deleteNode,
     clearTree,
-    runTraversal,
-    resetTree
+    resetTree,
+    isTreeBusy,
+    inorderSteps,
+    preorderSteps,
+    postorderSteps
 } from './structures/tree.js';
 import {
+    graphNodes,
     renderGraph,
     addNode,
     addEdge,
-    bfsTraversal,
-    dfsTraversal,
+    buildAdjacency,
     generateRandomGraph,
     clearGraph,
-    resetGraph
+    resetGraph,
+    bfsSteps,
+    dfsSteps
 } from './structures/graph.js';
 
 hljs.registerLanguage('javascript', javascript);
@@ -74,6 +80,7 @@ let lastRenderedStep = null; // The most recent step object, used to re-sync cod
 // SYNTAX HIGHLIGHTING (Phase 2: Multi-Language Execution)
 // ==========================================
 const HLJS_LANGUAGE_MAP = { javascript: 'javascript', python: 'python', cpp: 'cpp' };
+const CODE_TAB_LANG_BY_LABEL = { 'JS': 'javascript', 'Python': 'python', 'C++': 'cpp' };
 
 function escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -162,8 +169,7 @@ function clearCodeHighlight() {
 // whichever language tab (JS/Python/C++) happens to be active.
 function refreshCodeHighlight() {
     const activeTab = document.querySelector('.tab-btn.active');
-    const langKeyByLabel = { 'JS': 'javascript', 'Python': 'python', 'C++': 'cpp' };
-    const activeLangKey = activeTab ? langKeyByLabel[activeTab.innerText] : null;
+    const activeLangKey = activeTab ? CODE_TAB_LANG_BY_LABEL[activeTab.innerText] : null;
 
     if (!lastRenderedStep || !activeLangKey) {
         clearCodeHighlight();
@@ -184,6 +190,41 @@ function onPlayerStep(step) {
     refreshCodeHighlight();
     updateTelemetry();
     syncScrubber();
+}
+
+// Points the code panel / theory drawer at the given algorithmDatabase
+// entry (the same labels buildWorkspace fills for a fresh workspace) so the
+// per-phase lineMap lookup in refreshCodeHighlight() resolves against the
+// right algorithm. Keeps whichever language tab is currently active. Used
+// by the Structure-mode traversal runners below, which can switch between
+// e.g. In-Order and Pre-Order without rebuilding the whole workspace.
+function setActiveAlgorithmPanel(algoId) {
+    if (currentAlgoId === algoId) return;
+    const data = algorithmDatabase[algoId];
+    if (!data) return;
+
+    currentAlgoId = algoId;
+    currentActiveCodes = data.code;
+
+    const activeTab = document.querySelector('.tab-btn.active');
+    const langKey = (activeTab && CODE_TAB_LANG_BY_LABEL[activeTab.innerText]) || 'javascript';
+    renderCodeLines(currentActiveCodes[langKey], langKey);
+
+    const navTitle = document.getElementById('nav-title');
+    const desc = document.getElementById('algo-description');
+    const timeW = document.getElementById('time-worst');
+    const spaceC = document.getElementById('space-complexity');
+    if (navTitle) navTitle.innerText = data.title;
+    if (desc) desc.innerText = data.description;
+    if (timeW) timeW.innerText = data.complexities.worst;
+    if (spaceC) spaceC.innerText = data.complexities.space;
+}
+
+// Drops any stale code-panel highlight left by a previous traversal run —
+// called before every non-traversal Structure-mode operation and after Clear.
+function resetStructureCodeHighlight() {
+    lastRenderedStep = null;
+    clearCodeHighlight();
 }
 
 // --- 1. SCREEN NAVIGATION ENGINE ---
@@ -358,7 +399,7 @@ function applyDashboardFilters() {
     // 'default' — leave cards in their original insertion order, no re-sort needed
 }
 
-// --- 3. WORKSPACE BUILDER (Unchanged) ---
+// --- 3. WORKSPACE BUILDER ---
 function buildWorkspace(algoId) {
     const data = algorithmDatabase[algoId];
 
@@ -369,7 +410,7 @@ function buildWorkspace(algoId) {
 
     currentAlgoId = algoId;
     lastRenderedStep = null; // fresh workspace, no step to highlight yet
-    bumpWorkspaceGeneration(); // invalidate any in-flight tree/graph/stack/queue animation from the previous workspace
+    bumpWorkspaceGeneration(); // invalidate any in-flight tree/graph/stack/queue animation or traversal run from the previous workspace
 
     // Update UI Labels
     const navTitle = document.getElementById('nav-title');
@@ -729,24 +770,33 @@ function buildWorkspace(algoId) {
             return value;
         };
 
+        // Insert/Search/Delete render into the same arena a traversal is
+        // animating, so they're ignored while a traversal run is in flight
+        // (Clear and Random Tree are not — they cancel the run instead).
         document.getElementById('insert-btn').addEventListener('click', async () => {
+            if (isTraversalRunning()) return;
             const value = readValue();
             if (value === null) return;
+            resetStructureCodeHighlight();
             await insertNode(value);
             logSessionAction(`Inserted ${value}`);
             valueInput.value = '';
         });
 
         document.getElementById('search-btn').addEventListener('click', () => {
+            if (isTraversalRunning()) return;
             const value = readValue();
             if (value === null) return;
+            resetStructureCodeHighlight();
             searchTree(value);
             logSessionAction(`Searched ${value}`);
         });
 
         document.getElementById('delete-btn').addEventListener('click', () => {
+            if (isTraversalRunning()) return;
             const value = readValue();
             if (value === null) return;
+            resetStructureCodeHighlight();
             deleteNode(value);
             logSessionAction(`Deleted ${value}`);
             valueInput.value = '';
@@ -754,6 +804,7 @@ function buildWorkspace(algoId) {
 
         document.getElementById('random-btn').addEventListener('click', async () => {
             clearTree();
+            resetStructureCodeHighlight();
             const values = new Set();
             while (values.size < 7) {
                 values.add(Math.floor(Math.random() * 90) + 10);
@@ -766,6 +817,7 @@ function buildWorkspace(algoId) {
 
         wireClearConfirm(document.getElementById('clear-btn'), () => {
             clearTree();
+            resetStructureCodeHighlight();
             logSessionAction('Cleared tree');
         });
 
@@ -853,21 +905,23 @@ function buildWorkspace(algoId) {
         document.getElementById('bfs-btn').addEventListener('click', () => {
             const start = document.getElementById('start-node-input').value.trim();
             if (!start) { alert('Enter a start node.'); return; }
-            bfsTraversal(start);
+            runGraphTraversal('graph-bfs', bfsSteps, start);
         });
 
         document.getElementById('dfs-btn').addEventListener('click', () => {
             const start = document.getElementById('start-node-input').value.trim();
             if (!start) { alert('Enter a start node.'); return; }
-            dfsTraversal(start);
+            runGraphTraversal('graph-dfs', dfsSteps, start);
         });
 
         document.getElementById('random-btn').addEventListener('click', () => {
-            generateRandomGraph();
+            generateRandomGraph(); // clears first, which also cancels any traversal run in flight
+            resetStructureCodeHighlight();
         });
 
         wireClearConfirm(document.getElementById('clear-btn'), () => {
             clearGraph();
+            resetStructureCodeHighlight();
         });
     }
 }
@@ -1005,7 +1059,91 @@ function setupPlaybackButtons() {
     }
 }
 
-// --- 3c. STRUCTURE MODE DOCK HELPERS (Stack/Queue/Tree — spec §2.2) ---
+// --- 3c. STRUCTURE MODE TRAVERSAL RUNNERS (Tree / Graph — Advanced Algorithms) ---
+// tree.js / graph.js only export PURE generators (inorderSteps, bfsSteps,
+// ...). StepPlayer/renderStep are array-block specific, so Structure mode
+// gets its own runner here: it drives the generator with a for...of loop at
+// the shared speed, renders each step's highlights via the structure's own
+// render function, updates the status pill, and syncs the code panel line
+// via the entry's lineMap (looked up by step.phase in refreshCodeHighlight).
+
+// The workspaceGeneration value captured by the traversal run currently in
+// flight (null when idle). A run is "running" only while that value still
+// matches the live generation — bumpWorkspaceGeneration() (workspace switch,
+// Clear, Random) instantly orphans it, so a stale run's cleanup can never
+// clobber a newer run's state.
+let activeTraversalGeneration = null;
+
+function isTraversalRunning() {
+    return activeTraversalGeneration !== null && activeTraversalGeneration === workspaceGeneration;
+}
+
+async function runStructureTraversal(algoId, steps, renderFrame) {
+    if (isTraversalRunning()) return;
+
+    const myGeneration = workspaceGeneration;
+    activeTraversalGeneration = myGeneration;
+    const statusBar = document.getElementById('status-bar');
+
+    try {
+        setActiveAlgorithmPanel(algoId);
+
+        for (const step of steps) {
+            renderFrame(step.highlights);
+            statusBar.className = `status-message ${step.statusClass}`;
+            statusBar.innerText = step.message;
+
+            lastRenderedStep = step;
+            refreshCodeHighlight();
+
+            await sleep(getSpeed());
+            if (myGeneration !== workspaceGeneration) return; // navigated away or cleared mid-animation
+        }
+    } finally {
+        if (activeTraversalGeneration === myGeneration) activeTraversalGeneration = null;
+    }
+}
+
+const TREE_TRAVERSALS = {
+    inorder: { algoId: 'tree-inorder', generator: inorderSteps },
+    preorder: { algoId: 'tree-preorder', generator: preorderSteps },
+    postorder: { algoId: 'tree-postorder', generator: postorderSteps }
+};
+
+// order: 'inorder' | 'preorder' | 'postorder'
+async function runTraversal(order) {
+    const statusBar = document.getElementById('status-bar');
+
+    if (!treeRoot) {
+        statusBar.className = 'status-message error';
+        statusBar.innerText = 'Tree is empty — nothing to traverse';
+        return;
+    }
+    if (isTraversalRunning() || isTreeBusy()) return;
+
+    const traversal = TREE_TRAVERSALS[order];
+    if (!traversal) return;
+
+    await runStructureTraversal(traversal.algoId, traversal.generator(treeRoot), renderTree);
+}
+
+// algoId: 'graph-bfs' | 'graph-dfs'; generatorFn: bfsSteps | dfsSteps
+async function runGraphTraversal(algoId, generatorFn, start) {
+    if (isTraversalRunning()) return;
+
+    start = String(start).trim();
+    const statusBar = document.getElementById('status-bar');
+
+    if (!graphNodes[start]) {
+        statusBar.className = 'status-message error';
+        statusBar.innerText = `Node ${start} doesn't exist`;
+        return;
+    }
+
+    await runStructureTraversal(algoId, generatorFn(buildAdjacency(), start), renderGraph);
+}
+
+// --- 3d. STRUCTURE MODE DOCK HELPERS (Stack/Queue/Tree — spec §2.2) ---
 
 // Clear is destructive, so the first click swaps the button to "Confirm?"
 // instead of clearing immediately; a second click (within 3s) actually
