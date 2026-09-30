@@ -3,12 +3,26 @@
 // TREE ENGINE (js/structures/tree.js) — Binary Search Tree
 // ==========================================
 // Same "live/persistent structure" pattern as stack.js/queue.js/graph.js —
-// no generator/StepPlayer, direct async mutation with a busy guard against
-// overlapping animated operations (treeBusy, mirroring graph.js's
-// graphBusy). Node coordinates are computed fresh on every render: x from
-// in-order index (guarantees left-smaller/right-larger ordering reads
-// left-to-right with no edge crossovers, no external layout library
-// needed), y from recursion depth — same approach the README describes.
+// direct async mutation with a busy guard against overlapping animated
+// operations (treeBusy, mirroring the other structure engines). Node
+// coordinates are computed fresh on every render: x from in-order index
+// (guarantees left-smaller/right-larger ordering reads left-to-right with
+// no edge crossovers, no external layout library needed), y from recursion
+// depth — same approach the README describes.
+//
+// TRAVERSALS: inorderSteps / preorderSteps / postorderSteps are PURE
+// function* generators (no DOM, no timers, no app.js state) that yield
+// discrete step snapshots — same contract as js/algorithms/*.js:
+//   { phase, message, statusClass, highlights: { comparing, current, found, order } }
+// app.js imports them, drives the for...of loop, and owns all UI and
+// code-panel updates (phase → lineMap line in data.js).
+//
+// Highlight semantics (all values are node VALUES; BST values are unique):
+//   comparing → amber  : node currently being processed
+//   found     → green  : node already visited
+//   current   → blue   : ancestor still open on the recursion stack
+//   order     → small numbered badge showing visit order
+// Precedence when a value is in several lists: comparing > found > current.
 
 import { sleep, getSpeed, workspaceGeneration, bumpWorkspaceGeneration } from '../visualizer.js';
 
@@ -53,11 +67,13 @@ export function deleteFromTree(root, value) {
 }
 
 /**
- * Renders the tree as SVG. `comparing`/`found` are arrays of node VALUES
- * (not object refs — BST values are assumed unique), matching the
- * id-array convention graph.js uses for its comparing/found highlighting.
+ * Renders the tree as SVG. `comparing`/`current`/`found` are arrays of node
+ * VALUES (not object refs — BST values are assumed unique), matching the
+ * id-array convention graph.js uses. `order` is an array of values in visit
+ * order; each gets a small numbered badge. Non-color cues: the amber node is
+ * drawn slightly larger, visited nodes carry an order badge.
  */
-export function renderTree({ comparing = [], found = [] } = {}) {
+export function renderTree({ comparing = [], current = [], found = [], order = [] } = {}) {
     const container = document.getElementById('visualizer-container');
     if (!container) return;
 
@@ -100,6 +116,8 @@ export function renderTree({ comparing = [], found = [] } = {}) {
         pos.py = padding + pos.y * vSpacing + vSpacing / 2;
     });
 
+    const orderIndex = new Map(order.map((value, i) => [value, i + 1]));
+
     const svgNS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
@@ -121,15 +139,28 @@ export function renderTree({ comparing = [], found = [] } = {}) {
     });
 
     positions.forEach((pos, node) => {
+        const value = node.value;
+        const isComparing = comparing.includes(value);
+        const isFound = !isComparing && found.includes(value);
+        const isCurrent = !isComparing && !isFound && current.includes(value);
+
         const g = document.createElementNS(svgNS, 'g');
         g.classList.add('tree-node');
-        if (comparing.includes(node.value)) g.classList.add('comparing');
-        if (found.includes(node.value)) g.classList.add('found');
+        if (isComparing) g.classList.add('comparing');
+        if (isFound) g.classList.add('found');
+        if (isCurrent) g.classList.add('current');
 
         const circle = document.createElementNS(svgNS, 'circle');
         circle.setAttribute('cx', pos.px);
         circle.setAttribute('cy', pos.py);
-        circle.setAttribute('r', 22);
+        circle.setAttribute('r', isComparing ? 26 : 22);
+        if (isCurrent) {
+            // No .tree-node.current rule exists in style.css, so the blue
+            // "on the recursion stack" state is applied inline via the
+            // locked --state-blue token.
+            circle.style.fill = 'var(--state-blue)';
+            circle.style.stroke = 'var(--state-blue)';
+        }
         g.appendChild(circle);
 
         const text = document.createElementNS(svgNS, 'text');
@@ -137,13 +168,40 @@ export function renderTree({ comparing = [], found = [] } = {}) {
         text.setAttribute('y', pos.py);
         text.setAttribute('text-anchor', 'middle');
         text.setAttribute('dominant-baseline', 'central');
-        text.textContent = node.value;
+        text.textContent = value;
         g.appendChild(text);
+
+        if (orderIndex.has(value)) {
+            const badge = document.createElementNS(svgNS, 'circle');
+            badge.setAttribute('cx', pos.px + 18);
+            badge.setAttribute('cy', pos.py - 18);
+            badge.setAttribute('r', 10);
+            badge.style.fill = 'var(--panel-dark)';
+            badge.style.stroke = 'white';
+            badge.style.strokeWidth = '1.5';
+            g.appendChild(badge);
+
+            const badgeText = document.createElementNS(svgNS, 'text');
+            badgeText.setAttribute('x', pos.px + 18);
+            badgeText.setAttribute('y', pos.py - 18);
+            badgeText.setAttribute('text-anchor', 'middle');
+            badgeText.setAttribute('dominant-baseline', 'central');
+            badgeText.style.fontSize = '11px';
+            badgeText.style.fill = 'white';
+            badgeText.textContent = orderIndex.get(value);
+            g.appendChild(badgeText);
+        }
 
         svg.appendChild(g);
     });
 
     container.appendChild(svg);
+}
+
+// True while an animated insert/search/delete is in flight. app.js checks
+// this before starting a traversal so the two never render over each other.
+export function isTreeBusy() {
+    return treeBusy;
 }
 
 export async function insertNode(value) {
@@ -249,49 +307,6 @@ export async function deleteNode(value) {
     }
 }
 
-export async function runTraversal(order) {
-    if (!treeRoot) {
-        const statusBar = document.getElementById('status-bar');
-        statusBar.className = 'status-message error';
-        statusBar.innerText = 'Tree is empty — nothing to traverse';
-        return;
-    }
-    if (treeBusy) return;
-    treeBusy = true;
-    const myGeneration = workspaceGeneration;
-    const statusBar = document.getElementById('status-bar');
-
-    try {
-        const orderedNodes = [];
-        function collect(node) {
-            if (!node) return;
-            if (order === 'preorder') orderedNodes.push(node);
-            collect(node.left);
-            if (order === 'inorder') orderedNodes.push(node);
-            collect(node.right);
-            if (order === 'postorder') orderedNodes.push(node);
-        }
-        collect(treeRoot);
-
-        const label = order.charAt(0).toUpperCase() + order.slice(1);
-        const visited = [];
-        for (const node of orderedNodes) {
-            renderTree({ comparing: [node.value], found: [...visited] });
-            statusBar.className = 'status-message searching';
-            statusBar.innerText = `${label} traversal: ${visited.concat(node.value).join(' \u2192 ')}`;
-            await sleep(getSpeed());
-            if (myGeneration !== workspaceGeneration) return;
-            visited.push(node.value);
-        }
-
-        renderTree({ found: visited });
-        statusBar.className = 'status-message success';
-        statusBar.innerText = `${label} traversal complete: ${visited.join(' \u2192 ')}`;
-    } finally {
-        treeBusy = false;
-    }
-}
-
 export function clearTree() {
     bumpWorkspaceGeneration(); // orphan any pending animation so it can't resurrect after this clear
     treeRoot = null;
@@ -305,4 +320,152 @@ export function clearTree() {
 // app.js can't do `treeRoot = null` itself when it builds a workspace.
 export function resetTree() {
     treeRoot = null;
+    treeBusy = false;
+}
+
+// ==========================================
+// TRAVERSAL GENERATORS (pure — no DOM, no timers, no app.js state)
+// ==========================================
+// Shared bookkeeping: `stack` mirrors the open recursion frames (node
+// values), `visited` is the output order so far. snap(active) builds a fresh
+// highlight snapshot (arrays are copied so a consumer may safely cache steps).
+
+function createTreeTraversalContext() {
+    const stack = [];
+    const visited = [];
+    const snap = (active = null) => ({
+        comparing: active === null ? [] : [active],
+        current: stack.filter(v => v !== active),
+        found: [...visited],
+        order: [...visited]
+    });
+    return { stack, visited, snap };
+}
+
+function makeTreeStartStep(ctx, label, root) {
+    return {
+        phase: 'start',
+        message: root ? `Starting ${label} traversal at root ${root.value}` : `Starting ${label} traversal`,
+        statusClass: 'searching',
+        highlights: ctx.snap()
+    };
+}
+
+function makeTreeNullStep(ctx, parent, side) {
+    return {
+        phase: 'null-child',
+        message: parent === null ? 'The tree is empty — nothing to traverse' : `${parent} has no ${side} child — return`,
+        statusClass: 'searching',
+        highlights: ctx.snap(parent)
+    };
+}
+
+// Records the visit (mutates ctx.visited) and returns the matching step.
+function makeTreeVisitStep(ctx, label, value) {
+    ctx.visited.push(value);
+    return {
+        phase: 'visit',
+        message: `Visit ${value}. ${label} so far: ${ctx.visited.join(' \u2192 ')}`,
+        statusClass: 'searching',
+        highlights: ctx.snap(value)
+    };
+}
+
+function makeTreeDoneStep(ctx, label) {
+    return {
+        phase: 'done',
+        message: `${label} traversal complete: ${ctx.visited.join(' \u2192 ')}`,
+        statusClass: 'success',
+        highlights: { comparing: [], current: [], found: [...ctx.visited], order: [...ctx.visited] }
+    };
+}
+
+// Phases: start, null-child, go-left, visit, go-right, done
+export function* inorderSteps(root) {
+    const ctx = createTreeTraversalContext();
+    const label = 'In-Order';
+
+    yield makeTreeStartStep(ctx, label, root);
+
+    function* walk(node, parent, side) {
+        if (node === null) {
+            yield makeTreeNullStep(ctx, parent, side);
+            return;
+        }
+        const v = node.value;
+        ctx.stack.push(v);
+
+        yield { phase: 'go-left', message: `At ${v}: traverse the left subtree first`, statusClass: 'searching', highlights: ctx.snap(v) };
+        yield* walk(node.left, v, 'left');
+
+        yield makeTreeVisitStep(ctx, label, v);
+
+        yield { phase: 'go-right', message: `Back at ${v}: traverse the right subtree`, statusClass: 'searching', highlights: ctx.snap(v) };
+        yield* walk(node.right, v, 'right');
+
+        ctx.stack.pop();
+    }
+
+    yield* walk(root, null, null);
+    yield makeTreeDoneStep(ctx, label);
+}
+
+// Phases: start, null-child, visit, go-left, go-right, done
+export function* preorderSteps(root) {
+    const ctx = createTreeTraversalContext();
+    const label = 'Pre-Order';
+
+    yield makeTreeStartStep(ctx, label, root);
+
+    function* walk(node, parent, side) {
+        if (node === null) {
+            yield makeTreeNullStep(ctx, parent, side);
+            return;
+        }
+        const v = node.value;
+        ctx.stack.push(v);
+
+        yield makeTreeVisitStep(ctx, label, v);
+
+        yield { phase: 'go-left', message: `At ${v}: traverse the left subtree`, statusClass: 'searching', highlights: ctx.snap(v) };
+        yield* walk(node.left, v, 'left');
+
+        yield { phase: 'go-right', message: `Back at ${v}: traverse the right subtree`, statusClass: 'searching', highlights: ctx.snap(v) };
+        yield* walk(node.right, v, 'right');
+
+        ctx.stack.pop();
+    }
+
+    yield* walk(root, null, null);
+    yield makeTreeDoneStep(ctx, label);
+}
+
+// Phases: start, null-child, go-left, go-right, visit, done
+export function* postorderSteps(root) {
+    const ctx = createTreeTraversalContext();
+    const label = 'Post-Order';
+
+    yield makeTreeStartStep(ctx, label, root);
+
+    function* walk(node, parent, side) {
+        if (node === null) {
+            yield makeTreeNullStep(ctx, parent, side);
+            return;
+        }
+        const v = node.value;
+        ctx.stack.push(v);
+
+        yield { phase: 'go-left', message: `At ${v}: traverse the left subtree first`, statusClass: 'searching', highlights: ctx.snap(v) };
+        yield* walk(node.left, v, 'left');
+
+        yield { phase: 'go-right', message: `Back at ${v}: traverse the right subtree next`, statusClass: 'searching', highlights: ctx.snap(v) };
+        yield* walk(node.right, v, 'right');
+
+        yield makeTreeVisitStep(ctx, label, v);
+
+        ctx.stack.pop();
+    }
+
+    yield* walk(root, null, null);
+    yield makeTreeDoneStep(ctx, label);
 }
