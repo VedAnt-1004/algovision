@@ -3,7 +3,7 @@
 // ALGORITHM ENCYCLOPEDIA (js/data.js)
 // ==========================================
 
-export const algorithmDatabase = {
+const algorithmDatabase = {
 
     /* ==========================================
        1. SEARCHING ALGORITHMS
@@ -687,6 +687,103 @@ public:
         }
     },
 
+    // --- 5.1 Tree Traversals (generator-driven; opened via the BST workspace) --- //
+    // Each entry's lineMap keys are the phases yielded by inorderSteps /
+    // preorderSteps / postorderSteps in js/structures/tree.js.
+
+    "tree-inorder": {
+        title: "In-Order Traversal",
+        category: "tree",
+        type: "tree",
+        description: "In-Order Traversal visits a binary tree in Left \u2192 Node \u2192 Right order. On a Binary Search Tree this produces the values in ascending sorted order.\n\n1. Recursively traverse the left subtree.\n\n2. Visit the current node.\n\n3. Recursively traverse the right subtree.\n\nWhen a child is empty, the recursion simply returns to its parent.\n\nOn screen: amber is the node being processed, blue nodes are ancestors still waiting on the recursion stack, green nodes are already visited, and the small numbers show visit order.",
+        lineMap: { javascript: { start: 1, 'null-child': 2, 'go-left': 3, visit: 4, 'go-right': 5, done: 6 }, python: { start: 1, 'null-child': 3, 'go-left': 4, visit: 5, 'go-right': 6, done: 7 }, cpp: { start: 1, 'null-child': 2, 'go-left': 3, visit: 4, 'go-right': 5, done: 6 } },
+        complexities: { worst: "O(n)", space: "O(h)" },
+        code: {
+            javascript: `function inorder(node, result = []) {
+    if (node === null) return result;
+    inorder(node.left, result);
+    result.push(node.value);
+    inorder(node.right, result);
+    return result;
+}`,
+            python: `def inorder(node, result):
+    if node is None:
+        return result
+    inorder(node.left, result)
+    result.append(node.value)
+    inorder(node.right, result)
+    return result`,
+            cpp: `void inorder(Node* node, vector<int>& result) {
+    if (node == nullptr) return;
+    inorder(node->left, result);
+    result.push_back(node->value);
+    inorder(node->right, result);
+}`
+        }
+    },
+
+    "tree-preorder": {
+        title: "Pre-Order Traversal",
+        category: "tree",
+        type: "tree",
+        description: "Pre-Order Traversal visits a binary tree in Node \u2192 Left \u2192 Right order. The root always comes first, which makes it ideal for copying a tree or saving its structure.\n\n1. Visit the current node.\n\n2. Recursively traverse the left subtree.\n\n3. Recursively traverse the right subtree.\n\nWhen a child is empty, the recursion simply returns to its parent.\n\nOn screen: amber is the node being processed, green nodes are already visited, and the small numbers show visit order.",
+        lineMap: { javascript: { start: 1, 'null-child': 2, visit: 3, 'go-left': 4, 'go-right': 5, done: 6 }, python: { start: 1, 'null-child': 3, visit: 4, 'go-left': 5, 'go-right': 6, done: 7 }, cpp: { start: 1, 'null-child': 2, visit: 3, 'go-left': 4, 'go-right': 5, done: 6 } },
+        complexities: { worst: "O(n)", space: "O(h)" },
+        code: {
+            javascript: `function preorder(node, result = []) {
+    if (node === null) return result;
+    result.push(node.value);
+    preorder(node.left, result);
+    preorder(node.right, result);
+    return result;
+}`,
+            python: `def preorder(node, result):
+    if node is None:
+        return result
+    result.append(node.value)
+    preorder(node.left, result)
+    preorder(node.right, result)
+    return result`,
+            cpp: `void preorder(Node* node, vector<int>& result) {
+    if (node == nullptr) return;
+    result.push_back(node->value);
+    preorder(node->left, result);
+    preorder(node->right, result);
+}`
+        }
+    },
+
+    "tree-postorder": {
+        title: "Post-Order Traversal",
+        category: "tree",
+        type: "tree",
+        description: "Post-Order Traversal visits a binary tree in Left \u2192 Right \u2192 Node order. Children are always visited before their parent, which makes it ideal for deleting a tree bottom-up or evaluating expression trees.\n\n1. Recursively traverse the left subtree.\n\n2. Recursively traverse the right subtree.\n\n3. Visit the current node.\n\nWhen a child is empty, the recursion simply returns to its parent.\n\nOn screen: amber is the node being processed, blue nodes are ancestors still waiting on the recursion stack, green nodes are already visited, and the small numbers show visit order.",
+        lineMap: { javascript: { start: 1, 'null-child': 2, 'go-left': 3, 'go-right': 4, visit: 5, done: 6 }, python: { start: 1, 'null-child': 3, 'go-left': 4, 'go-right': 5, visit: 6, done: 7 }, cpp: { start: 1, 'null-child': 2, 'go-left': 3, 'go-right': 4, visit: 5, done: 6 } },
+        complexities: { worst: "O(n)", space: "O(h)" },
+        code: {
+            javascript: `function postorder(node, result = []) {
+    if (node === null) return result;
+    postorder(node.left, result);
+    postorder(node.right, result);
+    result.push(node.value);
+    return result;
+}`,
+            python: `def postorder(node, result):
+    if node is None:
+        return result
+    postorder(node.left, result)
+    postorder(node.right, result)
+    result.append(node.value)
+    return result`,
+            cpp: `void postorder(Node* node, vector<int>& result) {
+    if (node == nullptr) return;
+    postorder(node->left, result);
+    postorder(node->right, result);
+    result.push_back(node->value);
+}`
+        }
+    },
+
     /* ==========================================
        6. GRAPH
        ========================================== */
@@ -823,4 +920,122 @@ public:
         }
     },
 
+    // --- 6.1 Graph Traversals (generator-driven; opened via the Graph workspace) --- //
+    // Each entry's lineMap keys are the phases yielded by bfsSteps / dfsSteps
+    // in js/structures/graph.js. `graph` in the snippets is an adjacency list:
+    // an object mapping each node to the array of its neighbors.
+
+    "graph-bfs": {
+        title: "Breadth-First Search (BFS)",
+        category: "graph",
+        type: "graph",
+        description: "Breadth-First Search explores a graph level by level: every neighbor of the start node first, then their neighbors, and so on. It uses a queue, and finds the shortest path (by edge count) in an unweighted graph.\n\n1. Mark the start node visited and enqueue it.\n\n2. Dequeue the front node and visit it.\n\n3. For each neighbor not yet visited, mark it visited and enqueue it.\n\n4. Repeat until the queue is empty.\n\nOn screen: amber is the node being processed, blue nodes are waiting in the queue, green nodes are fully processed, green edges show how each node was discovered, and the small numbers show visit order.",
+        lineMap: { javascript: { start: 3, dequeue: 7, visit: 8, 'check-neighbor': 11, enqueue: 13, done: 17 }, python: { start: 5, dequeue: 9, visit: 10, 'check-neighbor': 13, enqueue: 15, done: 17 }, cpp: { start: 4, dequeue: 9, visit: 10, 'check-neighbor': 13, enqueue: 15, done: 19 } },
+        complexities: { worst: "O(V + E)", space: "O(V)" },
+        code: {
+            javascript: `function bfs(graph, start) {
+    const visited = new Set([start]);
+    const queue = [start];
+    const order = [];
+
+    while (queue.length > 0) {
+        const node = queue.shift();
+        order.push(node);
+
+        for (const neighbor of graph[node]) {
+            if (!visited.has(neighbor)) {
+                visited.add(neighbor);
+                queue.push(neighbor);
+            }
+        }
+    }
+    return order;
+}`,
+            python: `from collections import deque
+
+def bfs(graph, start):
+    visited = {start}
+    queue = deque([start])
+    order = []
+
+    while queue:
+        node = queue.popleft()
+        order.append(node)
+
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+
+    return order`,
+            cpp: `vector<string> bfs(unordered_map<string, vector<string>>& graph, const string& start) {
+    unordered_set<string> visited{start};
+    queue<string> q;
+    q.push(start);
+    vector<string> order;
+
+    while (!q.empty()) {
+        string node = q.front();
+        q.pop();
+        order.push_back(node);
+
+        for (const string& neighbor : graph[node]) {
+            if (!visited.count(neighbor)) {
+                visited.insert(neighbor);
+                q.push(neighbor);
+            }
+        }
+    }
+    return order;
+}`
+        }
+    },
+
+    "graph-dfs": {
+        title: "Depth-First Search (DFS)",
+        category: "graph",
+        type: "graph",
+        description: "Depth-First Search explores as far as possible down one path before backtracking. It uses recursion (the call stack), and is useful for detecting cycles and exploring every node reachable from a start node.\n\n1. Visit the current node and mark it visited.\n\n2. For each neighbor not yet visited, recurse into it.\n\n3. When a node has no unvisited neighbors left, backtrack to the node that called it.\n\nOn screen: amber is the node being processed, blue nodes are still open on the recursion stack, green nodes are finished (backtracked out), green edges show the path DFS took, and the small numbers show visit order.",
+        lineMap: { javascript: { start: 1, visit: 3, 'check-neighbor': 6, recurse: 7, backtrack: 10, done: 10 }, python: { start: 1, visit: 6, 'check-neighbor': 9, recurse: 10, backtrack: 12, done: 12 }, cpp: { start: 1, visit: 4, 'check-neighbor': 7, recurse: 8, backtrack: 11, done: 11 } },
+        complexities: { worst: "O(V + E)", space: "O(V)" },
+        code: {
+            javascript: `function dfs(graph, node, visited = new Set(), order = []) {
+    visited.add(node);
+    order.push(node);
+
+    for (const neighbor of graph[node]) {
+        if (!visited.has(neighbor)) {
+            dfs(graph, neighbor, visited, order);
+        }
+    }
+    return order;
+}`,
+            python: `def dfs(graph, node, visited=None, order=None):
+    if visited is None:
+        visited, order = set(), []
+
+    visited.add(node)
+    order.append(node)
+
+    for neighbor in graph[node]:
+        if neighbor not in visited:
+            dfs(graph, neighbor, visited, order)
+
+    return order`,
+            cpp: `void dfs(unordered_map<string, vector<string>>& graph, const string& node,
+         unordered_set<string>& visited, vector<string>& order) {
+    visited.insert(node);
+    order.push_back(node);
+
+    for (const string& neighbor : graph[node]) {
+        if (!visited.count(neighbor)) {
+            dfs(graph, neighbor, visited, order);
+        }
+    }
+}`
+        }
+    },
+
 };
+
+export { algorithmDatabase };
