@@ -52,7 +52,8 @@ import {
     isTreeBusy,
     inorderSteps,
     preorderSteps,
-    postorderSteps
+    postorderSteps,
+    avlInsertSteps
 } from './structures/tree.js';
 import {
     graphNodes,
@@ -258,8 +259,12 @@ const ALGO_ICONS = {
     stack: '<svg viewBox="0 0 48 48"><rect x="10" y="8" width="28" height="9" rx="2" fill="currentColor"/><rect x="10" y="20" width="28" height="9" rx="2" fill="currentColor" opacity="0.7"/><rect x="10" y="32" width="28" height="9" rx="2" fill="currentColor" opacity="0.45"/></svg>',
     queue: '<svg viewBox="0 0 48 48"><rect x="4" y="18" width="9" height="12" rx="2" fill="currentColor"/><rect x="16" y="18" width="9" height="12" rx="2" fill="currentColor" opacity="0.7"/><rect x="28" y="18" width="9" height="12" rx="2" fill="currentColor" opacity="0.45"/><path d="M40 18 L46 24 L40 30" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     tree: '<svg viewBox="0 0 48 48"><line x1="24" y1="12" x2="14" y2="26" stroke="currentColor" stroke-width="2" opacity="0.5"/><line x1="24" y1="12" x2="34" y2="26" stroke="currentColor" stroke-width="2" opacity="0.5"/><line x1="14" y1="26" x2="8" y2="38" stroke="currentColor" stroke-width="2" opacity="0.5"/><line x1="14" y1="26" x2="20" y2="38" stroke="currentColor" stroke-width="2" opacity="0.5"/><circle cx="24" cy="12" r="6" fill="currentColor"/><circle cx="14" cy="26" r="5" fill="currentColor" opacity="0.8"/><circle cx="34" cy="26" r="5" fill="currentColor" opacity="0.8"/><circle cx="8" cy="38" r="4" fill="currentColor" opacity="0.6"/><circle cx="20" cy="38" r="4" fill="currentColor" opacity="0.6"/></svg>',
+    avl: '<svg viewBox="0 0 48 48"><line x1="24" y1="10" x2="14" y2="24" stroke="currentColor" stroke-width="2" opacity="0.5"/><line x1="24" y1="10" x2="34" y2="24" stroke="currentColor" stroke-width="2" opacity="0.5"/><line x1="14" y1="24" x2="8" y2="34" stroke="currentColor" stroke-width="2" opacity="0.5"/><line x1="14" y1="24" x2="20" y2="34" stroke="currentColor" stroke-width="2" opacity="0.5"/><circle cx="24" cy="10" r="5" fill="currentColor"/><circle cx="14" cy="24" r="4.5" fill="currentColor" opacity="0.8"/><circle cx="34" cy="24" r="4.5" fill="currentColor" opacity="0.8"/><circle cx="8" cy="34" r="3.5" fill="currentColor" opacity="0.6"/><circle cx="20" cy="34" r="3.5" fill="currentColor" opacity="0.6"/><line x1="6" y1="43" x2="42" y2="43" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="M24 43 L24 39" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>',
     graph: '<svg viewBox="0 0 48 48"><line x1="12" y1="12" x2="36" y2="14" stroke="currentColor" stroke-width="2" opacity="0.5"/><line x1="36" y1="14" x2="30" y2="36" stroke="currentColor" stroke-width="2" opacity="0.5"/><line x1="30" y1="36" x2="10" y2="32" stroke="currentColor" stroke-width="2" opacity="0.5"/><line x1="10" y1="32" x2="12" y2="12" stroke="currentColor" stroke-width="2" opacity="0.5"/><line x1="12" y1="12" x2="30" y2="36" stroke="currentColor" stroke-width="2" opacity="0.35"/><circle cx="12" cy="12" r="5" fill="currentColor"/><circle cx="36" cy="14" r="5" fill="currentColor" opacity="0.8"/><circle cx="30" cy="36" r="5" fill="currentColor" opacity="0.8"/><circle cx="10" cy="32" r="5" fill="currentColor" opacity="0.6"/></svg>'
 };
+
+// Display names for the Type dropdown where plain capitalization reads wrong.
+const TYPE_LABELS = { avl: 'AVL' };
 
 function getAlgoIconSVG(algoType) {
     return ALGO_ICONS[algoType] || '';
@@ -362,7 +367,7 @@ function populateTypeFilter(types) {
     types.forEach(type => {
         const opt = document.createElement('option');
         opt.value = type;
-        opt.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+        opt.textContent = TYPE_LABELS[type] || (type.charAt(0).toUpperCase() + type.slice(1));
         select.appendChild(opt);
     });
     select.value = 'all';
@@ -732,8 +737,17 @@ function buildWorkspace(algoId) {
         });
     }
 
-    else if (data.type === "tree") {
+    else if (data.type === "tree" || data.type === "avl") {
+        // Binary Search Tree and AVL Tree share the Tree control dock. The AVL
+        // workspace drives insertion through avlInsertSteps (self-balancing)
+        // and omits Delete (AVL deletion is not implemented yet, and a plain
+        // BST delete would silently break the balance invariant).
+        const isAvl = data.type === "avl";
         resetTree();
+
+        const deleteButtonHTML = isAvl
+            ? ''
+            : '<button id="delete-btn" class="dashboard-btn btn-red">Delete</button>';
 
         controlsZone.innerHTML = `
             <div class="dock-zone dock-zone-setup">
@@ -746,7 +760,7 @@ function buildWorkspace(algoId) {
 
             <div class="dock-zone dock-zone-playback">
                 <button id="search-btn" class="dashboard-btn btn-secondary">Search</button>
-                <button id="delete-btn" class="dashboard-btn btn-red">Delete</button>
+                ${deleteButtonHTML}
                 <button id="random-btn" class="dashboard-btn btn-secondary">Random Tree</button>
                 <button id="clear-btn" class="dashboard-btn btn-red">Clear</button>
             </div>
@@ -774,10 +788,20 @@ function buildWorkspace(algoId) {
         // animating, so they're ignored while a traversal run is in flight
         // (Clear and Random Tree are not — they cancel the run instead).
         document.getElementById('insert-btn').addEventListener('click', async () => {
-            if (isTraversalRunning()) return;
+            if (isTraversalRunning() || isTreeBusy()) return;
             const value = readValue();
             if (value === null) return;
             resetStructureCodeHighlight();
+
+            if (isAvl) {
+                // Self-balancing insert: app.js drives the generator exactly like
+                // a traversal (render, status pill, code-panel line per step).
+                logSessionAction(`Inserted ${value}`);
+                valueInput.value = '';
+                await runStructureTraversal('avl-tree', avlInsertSteps(value), renderTree);
+                return;
+            }
+
             await insertNode(value);
             logSessionAction(`Inserted ${value}`);
             valueInput.value = '';
@@ -792,15 +816,18 @@ function buildWorkspace(algoId) {
             logSessionAction(`Searched ${value}`);
         });
 
-        document.getElementById('delete-btn').addEventListener('click', () => {
-            if (isTraversalRunning()) return;
-            const value = readValue();
-            if (value === null) return;
-            resetStructureCodeHighlight();
-            deleteNode(value);
-            logSessionAction(`Deleted ${value}`);
-            valueInput.value = '';
-        });
+        const deleteBtn = document.getElementById('delete-btn'); // not rendered in the AVL workspace
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+                if (isTraversalRunning()) return;
+                const value = readValue();
+                if (value === null) return;
+                resetStructureCodeHighlight();
+                deleteNode(value);
+                logSessionAction(`Deleted ${value}`);
+                valueInput.value = '';
+            });
+        }
 
         document.getElementById('random-btn').addEventListener('click', async () => {
             clearTree();
@@ -809,6 +836,22 @@ function buildWorkspace(algoId) {
             while (values.size < 7) {
                 values.add(Math.floor(Math.random() * 90) + 10);
             }
+
+            if (isAvl) {
+                // Build through the AVL generator itself (drained without
+                // animation, so seven inserts don't take a minute) — every
+                // rotation still runs, so the result is balanced by construction.
+                for (const v of values) {
+                    Array.from(avlInsertSteps(v));
+                }
+                renderTree();
+                const statusBar = document.getElementById('status-bar');
+                statusBar.className = 'status-message success';
+                statusBar.innerText = 'Generated a random balanced AVL tree';
+                logSessionAction('Generated random AVL tree');
+                return;
+            }
+
             for (const v of values) {
                 await insertNode(v);
             }
