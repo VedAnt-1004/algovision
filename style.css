@@ -217,6 +217,17 @@
     .theory-scrim.open {
         transition: none;
     }
+
+    /* Phase 3 (Advanced Algorithms): persistent tree SVG — nodes, labels and
+       edges jump straight to their new layout instead of gliding. tree.js also
+       sets --tree-move-ms to 0ms and skips its edge/viewBox tween under this
+       media query, so the JS-driven and CSS-driven parts stay in agreement. */
+    .tree-node,
+    .tree-node circle,
+    .tree-node text,
+    .tree-edge {
+        transition: none;
+    }
 }
 
 /* --- SECTION 1: GLOBAL BASE & RESETS --- */
@@ -2116,16 +2127,36 @@ code {
        (e.g. the root node) from being hard-clipped. */
 }
 
+/* --- Persistent-SVG transitions (Phase 3 / Advanced Algorithms) ---
+   tree.js no longer rebuilds the SVG on every render: each node (<g
+   id="tree-node-<value>">) and edge (<line id="tree-edge-<parent>-<child>">)
+   is a stable element that is moved/recolored in place. These rules are what
+   turns that into motion:
+     .tree-node  — the <g> is positioned with a CSS transform, so a new layout
+                   position glides (also covers opacity for the enter fade)
+     circle/text — fill, stroke and radius changes (amber/blue/green states)
+     .tree-edge  — stroke color/width; edge endpoints themselves are tweened
+                   by tree.js (x1..y2 are attributes, not CSS-transitionable)
+   Duration comes from --tree-move-ms, which tree.js sets on the <svg> from
+   the shared speed slider (capped at 500ms, 0 under reduced motion); the
+   0.5s fallback applies if the variable is ever absent. The easing is
+   cubic-bezier(0.65, 0, 0.35, 1) (easeInOutCubic) so tree.js's JS tween for
+   edges and the viewBox follows exactly the same curve as the CSS-driven nodes. */
 .tree-edge {
     stroke: #334155;
     stroke-width: 2;
+    transition: all var(--tree-move-ms, 0.5s) cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.tree-node {
+    transition: all var(--tree-move-ms, 0.5s) cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 .tree-node circle {
     fill: var(--surface-dark-alt);
     stroke: var(--accent-primary);
     stroke-width: 2;
-    transition: fill 0.3s ease, stroke 0.3s ease;
+    transition: all var(--tree-move-ms, 0.5s) cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 .tree-node text {
@@ -2134,6 +2165,23 @@ code {
     font-weight: 700;
     font-size: 15px;
     pointer-events: none;
+    transition: all var(--tree-move-ms, 0.5s) cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* AVL caption under a node ("h=2 bf=+1"). Dark ink on the light arena (the
+   generic .tree-node text rule above is white, for use inside the circle),
+   and the accent color once the balance factor leaves [-1, 1] — a non-hue
+   cue as well, since the text itself shows the ±2. */
+.tree-node .tree-node-label {
+    fill: var(--panel-dark);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.tree-node .tree-node-label.imbalanced {
+    fill: var(--accent-primary);
+    font-weight: 700;
 }
 
 .tree-node.comparing circle {
