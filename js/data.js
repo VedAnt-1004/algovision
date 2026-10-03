@@ -687,7 +687,181 @@ public:
         }
     },
 
-    // --- 5.1 Tree Traversals (generator-driven; opened via the BST workspace) --- //
+    // --- 5.1 Self-Balancing Trees (generator-driven; AVL insertion) --- //
+    // lineMap keys are the phases yielded by avlInsertSteps in js/structures/tree.js.
+
+    "avl-tree": {
+        title: "AVL Tree",
+        category: "tree",
+        type: "avl",
+        description: "An AVL tree is a self-balancing Binary Search Tree. After every insertion it checks each ancestor of the new node and, if the tree has become lopsided, repairs it with a rotation — so the height always stays O(log n), even for sorted input that would flatten a plain BST into a list.\n\n1. Insert the value exactly like a normal BST.\n\n2. Walk back up the path and recompute each node's height: 1 + max(left height, right height).\n\n3. Compute its balance factor: left height − right height. If it is −1, 0 or +1, the node is fine.\n\n4. If it is +2 or −2, rotate: Left-Left → rotate right; Right-Right → rotate left; Left-Right → rotate the child left, then the node right; Right-Left → rotate the child right, then the node left.\n\nOn screen: each node shows h (height) and bf (balance factor) — bf turns red when it hits ±2. Amber is the node being processed, blue is the pivot or an ancestor still waiting to be checked, green is the newly inserted value, and nodes glide to their new positions during a rotation.",
+        lineMap: { javascript: { start: 27, compare: 29, duplicate: 31, insert: 28, 'update-height': 33, balance: 34, 'rotate-ll': 36, 'rotate-rr': 37, 'rotate-lr-left': 39, 'rotate-lr-right': 40, 'rotate-rl-right': 43, 'rotate-rl-left': 44, done: 46 }, python: { start: 35, compare: 38, duplicate: 43, insert: 37, 'update-height': 45, balance: 46, 'rotate-ll': 49, 'rotate-rr': 51, 'rotate-lr-left': 53, 'rotate-lr-right': 54, 'rotate-rl-right': 56, 'rotate-rl-left': 57, done: 58 }, cpp: { start: 35, compare: 37, duplicate: 39, insert: 36, 'update-height': 41, balance: 42, 'rotate-ll': 44, 'rotate-rr': 45, 'rotate-lr-left': 47, 'rotate-lr-right': 48, 'rotate-rl-right': 51, 'rotate-rl-left': 52, done: 54 } },
+        complexities: { worst: "O(log n)", space: "O(n)" },
+        code: {
+            javascript: `function height(node) {
+    return node ? node.height : 0;
+}
+
+function balanceFactor(node) {
+    return height(node.left) - height(node.right);
+}
+
+function rotateRight(y) {
+    const x = y.left;
+    y.left = x.right;
+    x.right = y;
+    y.height = 1 + Math.max(height(y.left), height(y.right));
+    x.height = 1 + Math.max(height(x.left), height(x.right));
+    return x;
+}
+
+function rotateLeft(x) {
+    const y = x.right;
+    x.right = y.left;
+    y.left = x;
+    x.height = 1 + Math.max(height(x.left), height(x.right));
+    y.height = 1 + Math.max(height(y.left), height(y.right));
+    return y;
+}
+
+function insert(node, value) {
+    if (node === null) return { value, left: null, right: null, height: 1 };
+    if (value < node.value) node.left = insert(node.left, value);
+    else if (value > node.value) node.right = insert(node.right, value);
+    else return node; // no duplicates
+
+    node.height = 1 + Math.max(height(node.left), height(node.right));
+    const balance = balanceFactor(node);
+
+    if (balance > 1 && value < node.left.value) return rotateRight(node); // LL
+    if (balance < -1 && value > node.right.value) return rotateLeft(node); // RR
+    if (balance > 1 && value > node.left.value) { // LR
+        node.left = rotateLeft(node.left);
+        return rotateRight(node);
+    }
+    if (balance < -1 && value < node.right.value) { // RL
+        node.right = rotateRight(node.right);
+        return rotateLeft(node);
+    }
+    return node;
+}`,
+            python: `class Node:
+    def __init__(self, value):
+        self.value = value
+        self.left = None
+        self.right = None
+        self.height = 1
+
+
+def height(node):
+    return node.height if node else 0
+
+
+def balance_factor(node):
+    return height(node.left) - height(node.right)
+
+
+def rotate_right(y):
+    x = y.left
+    y.left = x.right
+    x.right = y
+    y.height = 1 + max(height(y.left), height(y.right))
+    x.height = 1 + max(height(x.left), height(x.right))
+    return x
+
+
+def rotate_left(x):
+    y = x.right
+    x.right = y.left
+    y.left = x
+    x.height = 1 + max(height(x.left), height(x.right))
+    y.height = 1 + max(height(y.left), height(y.right))
+    return y
+
+
+def insert(node, value):
+    if node is None:
+        return Node(value)
+    if value < node.value:
+        node.left = insert(node.left, value)
+    elif value > node.value:
+        node.right = insert(node.right, value)
+    else:
+        return node  # no duplicates
+
+    node.height = 1 + max(height(node.left), height(node.right))
+    balance = balance_factor(node)
+
+    if balance > 1 and value < node.left.value:
+        return rotate_right(node)  # LL
+    if balance < -1 and value > node.right.value:
+        return rotate_left(node)  # RR
+    if balance > 1 and value > node.left.value:  # LR
+        node.left = rotate_left(node.left)
+        return rotate_right(node)
+    if balance < -1 and value < node.right.value:  # RL
+        node.right = rotate_right(node.right)
+        return rotate_left(node)
+    return node`,
+            cpp: `struct Node {
+    int value;
+    Node* left;
+    Node* right;
+    int height;
+    Node(int v) : value(v), left(nullptr), right(nullptr), height(1) {}
+};
+
+int height(Node* node) {
+    return node ? node->height : 0;
+}
+
+int balanceFactor(Node* node) {
+    return height(node->left) - height(node->right);
+}
+
+Node* rotateRight(Node* y) {
+    Node* x = y->left;
+    y->left = x->right;
+    x->right = y;
+    y->height = 1 + max(height(y->left), height(y->right));
+    x->height = 1 + max(height(x->left), height(x->right));
+    return x;
+}
+
+Node* rotateLeft(Node* x) {
+    Node* y = x->right;
+    x->right = y->left;
+    y->left = x;
+    x->height = 1 + max(height(x->left), height(x->right));
+    y->height = 1 + max(height(y->left), height(y->right));
+    return y;
+}
+
+Node* insert(Node* node, int value) {
+    if (node == nullptr) return new Node(value);
+    if (value < node->value) node->left = insert(node->left, value);
+    else if (value > node->value) node->right = insert(node->right, value);
+    else return node; // no duplicates
+
+    node->height = 1 + max(height(node->left), height(node->right));
+    int balance = balanceFactor(node);
+
+    if (balance > 1 && value < node->left->value) return rotateRight(node); // LL
+    if (balance < -1 && value > node->right->value) return rotateLeft(node); // RR
+    if (balance > 1 && value > node->left->value) { // LR
+        node->left = rotateLeft(node->left);
+        return rotateRight(node);
+    }
+    if (balance < -1 && value < node->right->value) { // RL
+        node->right = rotateRight(node->right);
+        return rotateLeft(node);
+    }
+    return node;
+}`
+        }
+    },
+
+    // --- 5.2 Tree Traversals (generator-driven; opened via the BST workspace) --- //
     // Each entry's lineMap keys are the phases yielded by inorderSteps /
     // preorderSteps / postorderSteps in js/structures/tree.js.
 
