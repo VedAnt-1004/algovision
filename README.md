@@ -7,12 +7,12 @@
 
 [![CI Test Suite](https://github.com/VedAnt-1004/algovision/actions/workflows/ci.yml/badge.svg)](https://github.com/VedAnt-1004/algovision/actions/workflows/ci.yml)
 
-## 📌 Overview
+## 📌 Overview :
 AlgoVision is an interactive DSA visualization platform supporting searching, sorting, stacks, queues, binary search trees, and graph traversal. Built with a focus on step-by-step execution control and synchronized source-code tracking, it turns abstract algorithm logic into an inspectable debugging experience.
 
 ---
 
-## 🚀 Key Architectural Features
+## 🚀 Key Architectural Features :
 
 * **Generator-Based Execution Engine:** Algorithms are implemented using ES6 generators (`function*` and `yield`). This isolates algorithm logic from DOM rendering and caches immutable execution snapshots, enabling $O(1)$ backward and forward state navigation without rewinding loops.
 * **Synchronized Code Tracking:** A custom phase-mapping architecture maps JavaScript generator states to corresponding source lines in JavaScript, Python, and C++, accurately tracking execution across languages without arbitrary code compilation.
@@ -24,7 +24,7 @@ AlgoVision is an interactive DSA visualization platform supporting searching, so
 
 ---
 
-## 🧩 Supported Modules
+## 🧩 Supported Modules :
 
 | Category | Algorithm / Structure | Operations / Mode | Rendering Engine | Time Complexity | Space Complexity |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -37,7 +37,7 @@ AlgoVision is an interactive DSA visualization platform supporting searching, so
 
 ---
 
-## 📂 Project Structure
+## 📂 Project Structure :
 
 ```text
 algovision/
@@ -59,7 +59,7 @@ algovision/
 
 ---
 
-## 🛠️ Local Setup & Quickstart
+## 🛠️ Local Setup & Quickstart :
 
 AlgoVision has **zero external dependencies** (no Node modules, no build steps, no package managers required). 
 
@@ -81,7 +81,7 @@ npx serve .
 
 ---
 
-## 🤝 Contributing
+## 🤝 Contributing :
 
 Contributions are welcome! To add a new algorithm or data structure:
 
