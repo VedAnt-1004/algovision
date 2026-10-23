@@ -8,6 +8,10 @@
 //   4. every phase a generator can yield resolves to a real line in ALL three
 //      languages (and no lineMap entry is dead), so the code-panel highlight
 //      can never silently break when a snippet or generator is edited.
+//   5. the step shape contract renderStep() relies on
+//   6. structure-mode entries that DO carry a lineMap (the tree / graph
+//      traversals and the AVL tree) are just as well-formed as the
+//      algorithm-mode ones
 //
 // Pure logic only: no DOM, so the default `node` Jest environment is enough.
 
@@ -38,7 +42,13 @@ const REQUIRED_IDS = [
     'stack-operations',
     'queue-operations',
     'bst-operations',
+    'avl-tree',
+    'tree-inorder',
+    'tree-preorder',
+    'tree-postorder',
     'graph-operations',
+    'graph-bfs',
+    'graph-dfs',
 ];
 
 // `type` -> the dashboard category it must live under (see index.html crumbs)
@@ -48,14 +58,36 @@ const CATEGORY_FOR_TYPE = {
     stack: 'stack',
     queue: 'queue',
     tree: 'tree',
+    avl: 'tree',
     graph: 'graph',
 };
 const DASHBOARD_CATEGORIES = ['array', 'stack', 'queue', 'tree', 'graph'];
 
 // Algorithm-mode entries are driven by a generator + StepPlayer, so they are
-// the ones that need a lineMap. Structure-mode entries (stack/queue/tree/graph)
-// are live mutators and have no step timeline.
+// the ones that need a lineMap. Structure-mode entries (stack/queue/tree/avl/
+// graph) are live mutators with no step timeline — although the traversal and
+// AVL entries do carry a lineMap, because app.js drives their generators and
+// syncs the code panel (see section 6).
 const ALGORITHM_MODE_TYPES = ['search', 'sorting'];
+
+// Every phase avlInsertSteps (js/structures/tree.js) can yield. The dedicated
+// generator <-> lineMap cross-check lives in test/dom/structures.test.js; this
+// list pins the AVL entry's lineMap to the same vocabulary from the data side.
+const AVL_PHASES = [
+    'start',
+    'compare',
+    'duplicate',
+    'insert',
+    'update-height',
+    'balance',
+    'rotate-ll',
+    'rotate-rr',
+    'rotate-lr-left',
+    'rotate-lr-right',
+    'rotate-rl-right',
+    'rotate-rl-left',
+    'done',
+];
 
 // Which generator drives which database entry.
 const GENERATORS = {
@@ -74,6 +106,10 @@ const TERMINAL_PHASES = ['done', 'found', 'not-found'];
 
 const entries = Object.entries(algorithmDatabase);
 const algorithmEntries = entries.filter(([, entry]) => ALGORITHM_MODE_TYPES.includes(entry.type));
+// Structure-mode entries that ship a lineMap (traversals + AVL).
+const structureLineMapEntries = entries.filter(
+    ([, entry]) => !ALGORITHM_MODE_TYPES.includes(entry.type) && entry.lineMap,
+);
 
 // ---------- Helpers ----------
 
@@ -194,6 +230,17 @@ describe('algorithmDatabase: population', () => {
             expect({ id, category: DASHBOARD_CATEGORIES.includes(entry.category) }).toEqual({ id, category: true });
         });
     });
+
+    test('every type in CATEGORY_FOR_TYPE maps to a real dashboard category', () => {
+        Object.entries(CATEGORY_FOR_TYPE).forEach(([type, category]) => {
+            expect({ type, known: DASHBOARD_CATEGORIES.includes(category) }).toEqual({ type, known: true });
+        });
+    });
+
+    test('the "avl" type is registered and lives under the tree category', () => {
+        expect(CATEGORY_FOR_TYPE.avl).toBe('tree');
+        expect(entries.some(([, entry]) => entry.type === 'avl')).toBe(true);
+    });
 });
 
 describe.each(entries)('algorithmDatabase["%s"]: metadata', (id, entry) => {
@@ -216,6 +263,79 @@ describe.each(entries)('algorithmDatabase["%s"]: metadata', (id, entry) => {
         expect(entry.complexities).toEqual(expect.any(Object));
         expect(entry.complexities.worst).toMatch(/^O\(.+\)$/);
         expect(entry.complexities.space).toMatch(/^O\(.+\)$/);
+    });
+});
+
+describe('algorithmDatabase["avl-tree"]: AVL-specific metadata', () => {
+    const avl = algorithmDatabase['avl-tree'];
+
+    test('exists as a tree-category entry of type "avl"', () => {
+        expect(avl).toBeDefined();
+        expect(avl.category).toBe('tree');
+        expect(avl.type).toBe('avl');
+        expect(avl.title).toBe('AVL Tree');
+    });
+
+    test('is not an algorithm-mode entry (no StepPlayer: app.js drives its generator)', () => {
+        expect(ALGORITHM_MODE_TYPES).not.toContain(avl.type);
+    });
+
+    test('documents O(log n) worst-case insertion and O(n) space', () => {
+        expect(avl.complexities).toEqual({ worst: 'O(log n)', space: 'O(n)' });
+    });
+
+    test('the description explains heights, balance factor and the four rotation cases', () => {
+        const text = avl.description.toLowerCase();
+        ['height', 'balance factor', 'left-left', 'right-right', 'left-right', 'right-left', 'rotate'].forEach((term) => {
+            expect({ term, mentioned: text.includes(term) }).toEqual({ term, mentioned: true });
+        });
+    });
+
+    test('every snippet defines insertion and both rotations, and tracks node height', () => {
+        expect(avl.code.javascript).toMatch(/function insert\(/);
+        expect(avl.code.javascript).toMatch(/function rotateRight\(/);
+        expect(avl.code.javascript).toMatch(/function rotateLeft\(/);
+        expect(avl.code.python).toMatch(/def insert\(/);
+        expect(avl.code.python).toMatch(/def rotate_right\(/);
+        expect(avl.code.python).toMatch(/def rotate_left\(/);
+        expect(avl.code.cpp).toMatch(/Node\* insert\(/);
+        expect(avl.code.cpp).toMatch(/Node\* rotateRight\(/);
+        expect(avl.code.cpp).toMatch(/Node\* rotateLeft\(/);
+        LANGUAGES.forEach((language) => {
+            expect({ language, hasHeight: /height/.test(avl.code[language]) }).toEqual({ language, hasHeight: true });
+        });
+    });
+
+    test('the JavaScript snippet really balances: sequential inserts stay logarithmic and ordered', () => {
+        const { insert, height } = new Function(`${avl.code.javascript}\nreturn { insert, height };`)();
+        let root = null;
+        for (let value = 1; value <= 63; value++) root = insert(root, value);
+
+        // 63 ascending inserts into a plain BST would be a 63-deep list.
+        expect(height(root)).toBe(6);
+        expect(root.value).toBe(32);
+
+        const inOrder = (node) => (node ? [...inOrder(node.left), node.value, ...inOrder(node.right)] : []);
+        expect(inOrder(root)).toEqual(Array.from({ length: 63 }, (_, i) => i + 1));
+    });
+
+    test('the JavaScript snippet ignores duplicates', () => {
+        const { insert } = new Function(`${avl.code.javascript}\nreturn { insert };`)();
+        let root = null;
+        [5, 3, 8, 3, 5, 8].forEach((value) => {
+            root = insert(root, value);
+        });
+        const inOrder = (node) => (node ? [...inOrder(node.left), node.value, ...inOrder(node.right)] : []);
+        expect(inOrder(root)).toEqual([3, 5, 8]);
+    });
+
+    test('lineMap covers exactly the phases avlInsertSteps yields, in all three languages', () => {
+        LANGUAGES.forEach((language) => {
+            expect({ language, phases: Object.keys(avl.lineMap[language]).sort() }).toEqual({
+                language,
+                phases: [...AVL_PHASES].sort(),
+            });
+        });
     });
 });
 
@@ -419,7 +539,65 @@ describe.each(algorithmEntries)('step contract["%s"]', (id) => {
 });
 
 // =====================================================================
-// 6. KNOWN QUIRKS (tracked, not failing)
+// 6. STRUCTURE-MODE LINE MAPS (tree / graph traversals + AVL)
+// =====================================================================
+// These entries are not driven by a StepPlayer, but app.js's runStructureTraversal
+// looks their phases up in lineMap exactly like the algorithm-mode ones, so the
+// same well-formedness rules apply. (The generator <-> lineMap reachability
+// checks for them live in test/dom/structures.test.js, next to the generators'
+// DOM-free fixtures.)
+
+describe('lineMap: structure-mode entries', () => {
+    test('the traversal and AVL entries are the ones that carry a lineMap', () => {
+        expect(structureLineMapEntries.map(([id]) => id).sort()).toEqual(
+            ['avl-tree', 'graph-bfs', 'graph-dfs', 'tree-inorder', 'tree-postorder', 'tree-preorder'],
+        );
+    });
+
+    test('structure-mode entries without a generator (stack / queue / BST / graph overview) have no lineMap', () => {
+        ['stack-operations', 'queue-operations', 'bst-operations', 'graph-operations'].forEach((id) => {
+            expect({ id, lineMap: algorithmDatabase[id].lineMap }).toEqual({ id, lineMap: undefined });
+        });
+    });
+});
+
+describe.each(structureLineMapEntries)('lineMap["%s"] (structure mode)', (id, entry) => {
+    test('covers exactly javascript, python and cpp', () => {
+        expect(Object.keys(entry.lineMap).sort()).toEqual([...LANGUAGES].sort());
+    });
+
+    test('maps the same set of phases in every language', () => {
+        const phaseSets = LANGUAGES.map((language) => Object.keys(entry.lineMap[language]).sort());
+        expect(phaseSets[1]).toEqual(phaseSets[0]);
+        expect(phaseSets[2]).toEqual(phaseSets[0]);
+        expect(phaseSets[0]).toContain('start');
+        expect(phaseSets[0]).toContain('done');
+    });
+
+    test.each(LANGUAGES)('%s: every mapped line is an in-bounds, meaningful line of the snippet', (language) => {
+        const codeLines = entry.code[language].split('\n');
+        const problems = [];
+
+        Object.entries(entry.lineMap[language]).forEach(([phase, line]) => {
+            if (!Number.isInteger(line)) {
+                problems.push(`${phase}: ${JSON.stringify(line)} is not an integer`);
+            } else if (line < 1 || line > codeLines.length) {
+                problems.push(`${phase}: line ${line} is out of bounds (snippet has ${codeLines.length} lines)`);
+            } else if (codeLines[line - 1].trim() === '') {
+                problems.push(`${phase}: line ${line} is blank`);
+            } else if (!['done', 'backtrack'].includes(phase) && isLoneClosingBracket(codeLines[line - 1])) {
+                // 'done' / 'backtrack' may point at a closing brace: a C++ void
+                // function has no return line to highlight.
+                problems.push(`${phase}: line ${line} is just a closing bracket: ${JSON.stringify(codeLines[line - 1])}`);
+            }
+        });
+
+        expect(problems).toEqual([]);
+    });
+});
+
+// =====================================================================
+// 7. KNOWN QUIRKS (tracked, not failing)
 // =====================================================================
 
 describe('known quirks', () => {
